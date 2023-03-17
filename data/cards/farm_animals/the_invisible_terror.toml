@@ -1,0 +1,8 @@
+﻿type = "unit"
+name = "The Invisible Terror"
+description = "<i>This elusive horror remains unseen by the eyes of man.</i>"
+cost = 5
+types = ["Spectre"]
+attack = 8
+health = 2
+defense = 7

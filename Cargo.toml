@@ -8,3 +8,7 @@ edition = "2021"
 [dependencies]
 color-eyre = "0.6.2"
 tungstenite = "0.18.0"
+slotmap = "1.0.6"
+fastrand = "1.9.0"
+toml = "0.7.3"
+walkdir = "2.3.2"

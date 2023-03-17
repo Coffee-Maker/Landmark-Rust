@@ -1,0 +1,5 @@
+type = "hero"
+name = "Spectre Overlord"
+description = "A test hero."
+cost = 5
+types = ["Spectre"]

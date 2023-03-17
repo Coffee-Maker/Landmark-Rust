@@ -1,0 +1,10 @@
+﻿type = "unit"
+name = "Ice Golem"
+cost = 1
+types = ["Ice", "Golem"]
+attack = 7
+health = 3
+defense = 7
+
+#[[behaviour]]
+#description = "When this Unit enters the Field, it gains Protected for 2 Turns."

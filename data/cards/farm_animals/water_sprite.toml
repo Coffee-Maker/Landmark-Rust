@@ -1,0 +1,16 @@
+﻿type = "unit"
+name = "Water Sprite"
+cost = 1
+types = ["Water"]
+attack = 1
+health = 1
+defense = 0
+
+[[behaviour]]
+description = "If a third 'Water Sprite' enters the field, replace it with a 'Water Golem' and discard the other 2."
+    [[behaviour.trigger]]
+    type = "this-summon"
+
+    [[behaviour.action]]
+    type = "replace_group"
+    inputs = { id = "water_sprite", count = 3, replace_with = "water_golem", owner = "you" }

@@ -1,0 +1,25 @@
+type = "landscape"
+name = "Farmland"
+description = "A test landscape."
+cost = 2
+types = ["Muddy", "Cold"]
+slots = [
+    { x = 0, y = 0, z = 0 },
+    { x = 1, y = 0, z = 0 },
+    { x = 2, y = 0, z = 0 },
+    { x = 3, y = 0, z = 0 },
+    { x = 4, y = 0, z = 0 },
+    { x = 0, y = 0, z = 1 },
+    { x = 1, y = 0, z = 1 },
+    { x = 2, y = 0, z = 1 },
+    { x = 3, y = 0, z = 1 },
+    { x = 4, y = 0, z = 1 },
+]
+
+[[behaviour]]
+    [[behaviour.trigger]]
+    type = "you-summon"
+    match = { type-contains = ["Animal"] }
+
+    [[behaviour.action]]
+    type = "you_draw_card"

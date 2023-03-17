@@ -2,13 +2,14 @@ use std::net::TcpListener;
 use std::thread::spawn;
 
 use color_eyre::eyre::Result;
-use tungstenite::{accept_hdr};
+use tungstenite::accept_hdr;
 use tungstenite::handshake::server::Request;
 use tungstenite::handshake::server::Response;
 
 use game::game_state;
 
 mod game;
+mod card_finder;
 
 /// A WebSocket echo server
 fn main() -> Result<()> {
@@ -18,10 +19,9 @@ fn main() -> Result<()> {
 
     let server = TcpListener::bind("127.0.0.1:15076").unwrap();
 
-    for stream in server.incoming(){
-        
+    for stream in server.incoming() {
         spawn(move || {
-            println!("Found incoming connection");
+            //println!("Found incoming connection");
             let stream = stream.unwrap();
 
             let mut service_type = ServiceType::None;
@@ -32,11 +32,11 @@ fn main() -> Result<()> {
                     "/game" => {
                         service_type = ServiceType::Game;
                         Ok(response)
-                    },
+                    }
                     "/cardfinder" => {
                         service_type = ServiceType::CardFinder;
                         Ok(response)
-                    },
+                    }
                     _ => {
                         service_type = ServiceType::None;
                         Ok(response)
@@ -49,18 +49,13 @@ fn main() -> Result<()> {
                 ServiceType::None => {
                     println!("No service type found");
                     Ok(())
-                },
-                ServiceType::Game => {
-                    game_state::game_service(websocket)
                 }
-                ServiceType::CardFinder => {
-                    //todo!()
-                    Ok(())
-                }
-            }
+                ServiceType::Game => game_state::game_service(websocket),
+                ServiceType::CardFinder => card_finder::card_finder::finder_service(websocket),
+            }.unwrap()
         });
     }
-    
+
     Ok(())
 }
 

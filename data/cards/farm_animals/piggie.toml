@@ -1,0 +1,8 @@
+﻿type = "unit"
+name = "Piggie"
+description = "<i>An innocent little piggie.</i>"
+cost = 2
+types = ["Animal"]
+attack = 1
+health = 2
+defense = 0
