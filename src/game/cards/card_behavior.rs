@@ -1,21 +1,20 @@
 ﻿use std::collections::VecDeque;
 use color_eyre::eyre::{ContextCompat, eyre};
-use toml::{Table, Value};
-use crate::game::game_state::{CardKey, GameState, PlayerID};
+use toml::Table;
+use crate::game::game_state::{CardKey, GameState, PlayerId};
 
 use color_eyre::Result;
-use crate::game::cards::card::CardData;
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::instruction::Instruction;
 use crate::game::trigger_context::{ContextValue, TriggerContext};
 
 #[derive(Clone)]
-pub struct Behaviour {
+pub struct Behavior {
     triggers: Vec<(TriggerDefinition, Table)>,
     actions: Vec<(BehaviourAction, Table)>,
 }
 
-impl Behaviour {
+impl Behavior {
     pub fn from(table: Table) -> Result<Self> {
         let mut triggers = Vec::new();
         let mut actions = Vec::new();
@@ -25,7 +24,7 @@ impl Behaviour {
                 "trigger" => {
                     for trigger in value.as_array().ok_or_else(|| eyre!("Trigger is not an array"))? {
                         let trigger_table = trigger.as_table().context("Trigger is not a table")?;
-                        triggers.push(BehaviourTrigger::from(trigger_table)?);
+                        triggers.push(BehaviorTrigger::from(trigger_table)?);
                     }
                 }
                 "action" => {
@@ -44,7 +43,7 @@ impl Behaviour {
         })
     }
 
-    pub fn trigger(&self, trigger: BehaviourTrigger, player: PlayerID, context: &TriggerContext, state: &GameState, comm: &mut GameCommunicator, card: CardKey) -> Result<()> {
+    pub fn trigger(&self, trigger: BehaviorTrigger, player: PlayerId, context: &TriggerContext, state: &GameState, comm: &mut GameCommunicator, card: CardKey) -> Result<()> {
         let c = state.card_instances.get(card).ok_or_else(|| eyre!("Card not found during trigger"))?;
 
         for (t, m) in &self.triggers {
@@ -155,7 +154,7 @@ impl Behaviour {
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub enum BehaviourTrigger {
+pub enum BehaviorTrigger {
     TurnStart,
     TurnEnd,
     DrawCard,
@@ -171,9 +170,9 @@ pub enum TriggerTarget {
     This,
 }
 
-type TriggerDefinition = (BehaviourTrigger, TriggerTarget);
+type TriggerDefinition = (BehaviorTrigger, TriggerTarget);
 
-impl BehaviourTrigger {
+impl BehaviorTrigger {
     pub fn from(trigger: &Table) -> Result<(TriggerDefinition, Table)> {
         let trigger_type = trigger.get("type").context("Trigger type is undefined")?.as_str().context("Trigger type is not a string")?;
         let inputs = trigger.get("match");
@@ -228,21 +227,21 @@ pub fn get_function(action: &Table) -> Result<(BehaviourAction, Table)> {
     }, inputs))
 }
 
-pub fn you_draw_card(state: &GameState, comm: &mut GameCommunicator, card: CardKey, _table: &Table) -> Result<()> {
+pub fn you_draw_card(state: &GameState, communicator: &mut GameCommunicator, card: CardKey, _table: &Table) -> Result<()> {
     let card = state.card_instances.get(card).unwrap();
-    state.draw_card(card.owner, comm)?;
+    state.get_player(card.owner).draw_card(state, communicator)?;
     Ok(())
 }
 
-pub fn replace_this(state: &GameState, comm: &mut GameCommunicator, card: CardKey, table: &Table) -> Result<()> {
+pub fn replace_this(state: &GameState, communicator: &mut GameCommunicator, card: CardKey, table: &Table) -> Result<()> {
     let with = table.get("with").context("Replace action has no 'with' input")?.as_str().context("Replace action 'with' input is not a string")?;
+    communicator.queue.enqueue(Instruction::Destroy { card });
     let card_instance = state.card_instances.get(card).unwrap();
-    comm.queue.push_back(Instruction::Destroy { card });
-    comm.queue.push_back(Instruction::CreateCard { id: with.into(), iid: fastrand::u64(..), location: card_instance.location, player: card_instance.owner });
+    communicator.queue.enqueue(Instruction::CreateCard { id: with.into(), iid: fastrand::u64(..), location: card_instance.location, player: card_instance.owner });
     Ok(())
 }
 
-pub fn replace_group(state: &GameState, comm: &mut GameCommunicator, card: CardKey, table: &Table) -> Result<()> {
+pub fn replace_group(state: &GameState, communicator: &mut GameCommunicator, card: CardKey, table: &Table) -> Result<()> {
     let count = table.get("count").context("Count is undefined")?.as_integer().context("Count is not an integer")? as usize;
     let id = table.get("id").context("ID is undefined")?.as_str().context("ID is not a string")?;
     let replace_with = table.get("replace_with").context("Replace with is undefined")?.as_str().context("Replace with is not a string")?;
@@ -279,8 +278,8 @@ pub fn replace_group(state: &GameState, comm: &mut GameCommunicator, card: CardK
     }
 
     if found.len() >= count {
-        for i in 0..count { comm.queue.push_back(Instruction::Destroy { card: found[i] }); }
-        comm.queue.push_back(Instruction::CreateCard {
+        for i in 0..count { communicator.queue.enqueue(Instruction::Destroy { card: found[i] }); }
+        communicator.queue.enqueue(Instruction::CreateCard {
             id: replace_with.into(),
             iid: fastrand::u64(..),
             location: this_card.location,

@@ -23,3 +23,15 @@ slots = [
 
     [[behaviour.action]]
     type = "you_draw_card"
+
+# New format
+#[[behavior]]
+#[[behavior.trigger]]
+#when = "you:summon"
+#and = [
+#    { "type:is_one_of" = ["Animal"] }
+#]
+#
+#[[behavior.action]]
+#then = "draw_card"
+#with = { target = "you", amount = 3 }

@@ -1,65 +1,61 @@
-use std::collections::VecDeque;
-use crate::game::game_state::GameState;
-use crate::game::instruction::Instruction;
 use color_eyre::Result;
-use std::net::TcpStream;
-use std::ops::{Deref, DerefMut};
-use tungstenite::{Message, WebSocket};
+use futures_util::{SinkExt, StreamExt};
+use tokio::net::TcpStream;
+use tokio_tungstenite::WebSocketStream;
+use tokio_tungstenite::tungstenite::Message;
+
+use crate::game::game_state::GameState;
+use crate::game::instruction::{Instruction, InstructionQueue};
 
 pub struct GameCommunicator {
-    websocket: WebSocket<TcpStream>,
-    pub queue: VecDeque<Instruction>,
+    websocket: WebSocketStream<TcpStream>,
+    pub queue: InstructionQueue,
 }
 
 impl GameCommunicator {
-    pub fn new(websocket: WebSocket<TcpStream>) -> Self {
+    pub async fn new(websocket: WebSocketStream<TcpStream>) -> Self {
         Self {
             websocket,
-            queue: VecDeque::new(),
+            queue: InstructionQueue::new(),
         }
     }
 
-    pub fn send_info(&mut self, info: &str) -> Result<()> {
-        self.websocket
-            .write_message(Message::Text(format!("inf{}", info)))?;
+    pub async fn process_instructions(&mut self, state: &mut GameState) -> Result<()> {
+        while self.queue.len() > 0 {
+            let ins = self.queue.dequeue().unwrap();
+            ins.process(state, self).await?
+        }
         Ok(())
     }
 
-    pub fn send_error(&mut self, error: &str) -> Result<()> {
-        self.websocket
-            .write_message(Message::Text(format!("err{}", error)))?;
+    pub async fn send_info(&mut self, info: &str) -> Result<()> {
+        self.websocket.send(Message::Text(format!("inf{}", info))).await?;
         Ok(())
     }
 
-    pub fn send_game_instruction(
+    pub async fn send_error(&mut self, error: &str) -> Result<()> {
+        println!("(Server) \x1b[31m\x1bError: {error}\x1b[0m");
+        self.websocket.send(Message::Text(format!("err{}", error))).await?;
+        Ok(())
+    }
+
+    pub async fn send_game_instruction(
         &mut self,
         state: &mut GameState,
         instruction: &Instruction,
     ) -> Result<()> {
         let message = instruction.clone().build(state)?;
-        println!("\x1b[32m{}\x1b[0m", message);
-        self.websocket
-            .write_message(Message::Text(message))?;
+        println!("(Server) \x1b[32m{}\x1b[0m", message);
+        self.websocket.send(Message::Text(message)).await?;
         Ok(())
     }
 
-    pub fn send_raw(&mut self, msg: &str) -> Result<()> {
-        self.websocket
-            .write_message(Message::Text(msg.into()))?;
+    pub async fn send_raw(&mut self, msg: &str) -> Result<()> {
+        self.websocket.send(Message::Text(msg.into())).await?;
         Ok(())
     }
-}
 
-impl Deref for GameCommunicator {
-    type Target = WebSocket<TcpStream>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.websocket
-    }
-}
-
-impl DerefMut for GameCommunicator {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.websocket
+    pub async fn read_message(&mut self) -> Result<Message> {
+        self.websocket.next().await.expect("Failed to read message").map_err(|e| e.into())
     }
 }

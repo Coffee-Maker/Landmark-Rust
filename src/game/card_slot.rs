@@ -1,8 +1,8 @@
-use crate::game::game_state::{CardKey, ObjKey, ServerIID};
+use crate::game::game_state::{CardKey, ObjKey, ServerInstanceId};
 use crate::game::location::Location;
 
 pub struct CardSlot {
-    pub lid: ServerIID,
+    pub lid: ServerInstanceId,
     pub card: Option<CardKey>,
 }
 
@@ -16,11 +16,11 @@ impl CardSlot {
 }
 
 impl Location for CardSlot {
-    fn set_lid(&mut self, lid: ServerIID) {
+    fn set_lid(&mut self, lid: ServerInstanceId) {
         self.lid = lid;
     }
 
-    fn get_lid(&self) -> ServerIID {
+    fn get_lid(&self) -> ServerInstanceId {
         self.lid
     }
 

@@ -1,2 +1,2 @@
 pub mod card;
-pub mod card_behaviour;
+pub mod card_behavior;

@@ -1,62 +1,68 @@
-use std::net::TcpListener;
-use std::thread::spawn;
+#![feature(let_chains)]
 
 use color_eyre::eyre::Result;
-use tungstenite::accept_hdr;
-use tungstenite::handshake::server::Request;
-use tungstenite::handshake::server::Response;
+use owo_colors::OwoColorize;
+use tokio::net::{TcpListener, TcpStream};
+use tokio_tungstenite::tungstenite::handshake::server::Request;
+use tokio_tungstenite::tungstenite::handshake::server::Response;
 
 use game::game_state;
 
 mod game;
 mod card_finder;
 
-/// A WebSocket echo server
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
+    println!("{} {}", "(Server)".cyan().bold(), "Info: Did you know that the dot on top of the letter 'i' is called a tittle?".bright_black());
+    println!("{} {}", "(Server)".cyan().bold(), "Warning: I have no idea who uses these".yellow());
+    println!("{} {}", "(Server)".cyan().bold(), "Error: You made something and then it didn't work :(".red());
+    println!("{} {}", "(Server)".cyan().bold(), "Command: tst//do you/!//like my/!//command format/!".green());
+    println!("{} {}", "(Client)".yellow().bold(), "Incoming message here");
+
     color_eyre::install()?;
 
     println!("Starting TcpListener");
 
-    let server = TcpListener::bind("127.0.0.1:15076").unwrap();
+    let server = TcpListener::bind("127.0.0.1:15076").await?;
 
-    for stream in server.incoming() {
-        spawn(move || {
-            //println!("Found incoming connection");
-            let stream = stream.unwrap();
-
-            let mut service_type = ServiceType::None;
-
-            let callback = |req: &Request, response: Response| {
-                // switch on the path
-                match req.uri().path() {
-                    "/game" => {
-                        service_type = ServiceType::Game;
-                        Ok(response)
-                    }
-                    "/cardfinder" => {
-                        service_type = ServiceType::CardFinder;
-                        Ok(response)
-                    }
-                    _ => {
-                        service_type = ServiceType::None;
-                        Ok(response)
-                    }
-                }
-            };
-
-            let websocket = accept_hdr(stream, callback).unwrap();
-            match service_type {
-                ServiceType::None => {
-                    println!("No service type found");
-                    Ok(())
-                }
-                ServiceType::Game => game_state::game_service(websocket),
-                ServiceType::CardFinder => card_finder::card_finder::finder_service(websocket),
-            }.unwrap()
-        });
+    while let Ok((stream, _)) = server.accept().await {
+        tokio::spawn(accept_connection(stream));
     }
 
     Ok(())
+}
+
+async fn accept_connection(stream: TcpStream) -> Result<()> {
+    let mut service_type = ServiceType::None;
+
+    let callback = |req: &Request, response: Response| {
+        // switch on the path
+        match req.uri().path() {
+            "/game" => {
+                service_type = ServiceType::Game;
+                Ok(response)
+            }
+            "/cardfinder" => {
+                service_type = ServiceType::CardFinder;
+                Ok(response)
+            }
+            _ => {
+                service_type = ServiceType::None;
+                Ok(response)
+            }
+        }
+    };
+
+    let websocket = tokio_tungstenite::accept_hdr_async(stream, callback).await?;
+
+    match service_type {
+        ServiceType::None => {
+            println!("No service type found");
+            Ok(())
+        }
+        ServiceType::Game => game_state::game_service(websocket).await,
+        ServiceType::CardFinder => card_finder::card_finder::finder_service(websocket).await,
+    }
 }
 
 // An enum for service type

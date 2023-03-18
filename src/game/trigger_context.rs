@@ -1,6 +1,4 @@
 ﻿use std::collections::HashMap;
-use toml::{Table, Value};
-use crate::game::cards::card::CardData;
 use crate::game::game_state::{CardKey, GameState};
 
 pub struct TriggerContext {

@@ -1,14 +1,17 @@
 [package]
-name = "Landmark-Rust"
+name = "landmark_rust"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 color-eyre = "0.6.2"
-tungstenite = "0.18.0"
+tokio = { version = "1.26.0", features = ["full"] }
+tokio-tungstenite = "0.18.0"
 slotmap = "1.0.6"
 fastrand = "1.9.0"
 toml = "0.7.3"
 walkdir = "2.3.2"
+owo-colors = "3.5.0"
+futures-util = "0.3.27"
+async-recursion = "1.0.2"
+serde = "1.0.157"

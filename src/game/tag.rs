@@ -1,14 +1,14 @@
-use crate::game::game_state::{CardKey, GameState, LocationKey, PlayerID, ServerIID};
+use crate::game::game_state::{CardKey, GameState, LocationKey, PlayerId, ServerInstanceId};
 use color_eyre::eyre::ContextCompat;
 use color_eyre::Result;
-use crate::game::cards::card::{CardData, CardType};
+use crate::game::cards::card::{CardData, CardCategory};
 
 pub enum Tag {
-    Player(PlayerID),
+    Player(PlayerId),
     Integer(u32),
     String(String),
     CardData(CardData),
-    ServerIID(ServerIID),
+    ServerInstanceId(ServerInstanceId),
     CardInstance(CardKey),
     Location(LocationKey),
 }
@@ -19,7 +19,7 @@ impl Tag {
             Tag::Player(p) => format!("{}", p as u32),
             Tag::Integer(t) => format!("{}", t),
             Tag::String(c) => format!("{}", c),
-            Tag::ServerIID(c) => format!("{}", c),
+            Tag::ServerInstanceId(c) => format!("{}", c),
             Tag::CardInstance(c) => format!("{}", state.card_instances.get(c).context("Tried to create tag for non existent card")?.instance_id),
             Tag::Location(l) => format!("{}", state.locations.get(l).context("Tried to create tag for non existent location")?.get_lid()),
             Tag::CardData(c) => {
@@ -31,17 +31,17 @@ impl Tag {
                 let mut attack = 0;
                 let mut defense = 0;
                 let types = c.card_types.join(", ");
-                let card_type = match c.card_type {
-                    CardType::Hero => 0,
-                    CardType::Landscape { slots: _slots } => 1,
-                    CardType::Unit { attack: a, health: h, defense: d } => {
+                let card_type = match c.card_category {
+                    CardCategory::Hero => 0,
+                    CardCategory::Landscape { slots: _slots } => 1,
+                    CardCategory::Unit { attack: a, health: h, defense: d } => {
                         attack = a;
                         health = h;
                         defense = d;
                         2
                     }
-                    CardType::Item => 3,
-                    CardType::Command => 4,
+                    CardCategory::Item => 3,
+                    CardCategory::Command => 4,
                 };
                 format!("{id};;{card_type};;{name};;{description};;{cost};;{health};;{defense};;{attack};;{types};;")
             }

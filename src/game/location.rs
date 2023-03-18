@@ -1,8 +1,9 @@
-use crate::game::game_state::{CardKey, ServerIID};
+use crate::game::game_state::{CardKey, ServerInstanceId};
+
 
 pub trait Location {
-    fn set_lid(&mut self, lid: ServerIID);
-    fn get_lid(&self) -> ServerIID;
+    fn set_lid(&mut self, lid: ServerInstanceId);
+    fn get_lid(&self) -> ServerInstanceId;
 
     fn add_card(&mut self, card: CardKey);
     fn remove_card(&mut self, card: CardKey);

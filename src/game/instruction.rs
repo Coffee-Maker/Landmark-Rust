@@ -2,62 +2,81 @@ use crate::game::game_communicator::GameCommunicator;
 use crate::game::tag::Tag;
 use color_eyre::eyre::ContextCompat;
 use std::collections::VecDeque;
+use async_recursion::async_recursion;
 
-use crate::game::game_state::{CardKey, GameState, LocationKey, PlayerID, ServerIID};
+use crate::game::game_state::{CardKey, GameState, LocationKey, PlayerId, ServerInstanceId};
 use color_eyre::Result;
 use crate::game::card_slot::CardSlot;
-use crate::game::cards::card::CardType;
-use crate::game::cards::card_behaviour::BehaviourTrigger;
-use crate::game::trigger_context::{ContextValue, TriggerContext};
+use crate::game::cards::card_behavior::BehaviorTrigger;
+use crate::game::trigger_context::TriggerContext;
 
-pub type InstructionQueue<'a> = &'a mut VecDeque<Instruction>;
+pub struct InstructionQueue(VecDeque<Instruction>);
+
+impl InstructionQueue {
+    pub fn new() -> Self {
+        InstructionQueue(VecDeque::new())
+    }
+
+    pub fn enqueue(&mut self, instruction: Instruction) {
+        self.0.push_back(instruction)
+    }
+
+    pub fn dequeue(&mut self) -> Option<Instruction> {
+        self.0.pop_front()
+    }
+
+    pub fn len(&mut self) -> usize {
+        self.0.len()
+    }
+}
 
 #[derive(Clone)]
 pub enum Instruction {
     StartGame {},
     AddLandscapeSlot {
-        player: PlayerID,
+        player: PlayerId,
         index: u32,
-        lid: ServerIID,
+        location_id: ServerInstanceId,
     },
     SetThaum {
-        player: PlayerID,
+        player: PlayerId,
         amount: u32,
     },
     MoveCard {
         card: CardKey,
         to: LocationKey,
     },
-    DrawCard { player: PlayerID },
+    DrawCard { player: PlayerId },
     CreateCard {
         id: String,
-        iid: ServerIID,
+        iid: ServerInstanceId,
         location: LocationKey,
-        player: PlayerID,
+        player: PlayerId,
     },
-    SetTurn { player: PlayerID },
+    SetTurn { player: PlayerId },
     Clear { location: LocationKey },
     NotifySummon { card: CardKey },
     Destroy { card: CardKey },
 }
 
 impl Instruction {
-    pub fn process(self, state: &mut GameState, comm: &mut GameCommunicator) -> Result<()> {
+    #[async_recursion]
+    pub async fn process(self, state: &mut GameState, comm: &mut GameCommunicator) -> Result<()> {
         match &self {
-            Instruction::StartGame {} => comm.send_game_instruction(state, &self),
-            Instruction::AddLandscapeSlot { player, index: _index, lid } => {
+            Instruction::StartGame {} => comm.send_game_instruction(state, &self).await,
+            Instruction::AddLandscapeSlot { player, index: _index, location_id: lid } => {
                 let new_loc = CardSlot::new();
                 let loc_key = state.add_location(*lid, Box::new(new_loc));
                 let side = match player {
-                    PlayerID::Player1 => &mut state.board.side1,
-                    PlayerID::Player2 => &mut state.board.side2,
+                    PlayerId::Player1 => &mut state.board.side_1,
+                    PlayerId::Player2 => &mut state.board.side_2,
                 };
                 side.field.push(loc_key);
-                comm.send_game_instruction(state, &self)
+                comm.send_game_instruction(state, &self).await
             }
             Instruction::SetThaum { player: player_id, amount, } => {
                 state.get_player_mut(*player_id).thaum = *amount;
-                comm.send_game_instruction(state, &self)
+                comm.send_game_instruction(state, &self).await
             }
             Instruction::MoveCard { card, to } => {
                 let mut card_instance = state.card_instances.get_mut(*card).context("Card instance not found while attempting a move")?;
@@ -71,21 +90,21 @@ impl Instruction {
                     .context("Tried to move a card to a location that doesn't exist")?;
                 to_instance.add_card(*card);
 
-                let from_side1 = state.board.side1.field.contains(&from);
-                let from_side2 = state.board.side2.field.contains(&from);
-                let to_side1 = state.board.side1.field.contains(&to);
-                let to_side2 = state.board.side2.field.contains(&to);
+                let from_side1 = state.board.side_1.field.contains(&from);
+                let from_side2 = state.board.side_2.field.contains(&from);
+                let to_side1 = state.board.side_1.field.contains(&to);
+                let to_side2 = state.board.side_2.field.contains(&to);
 
                 if to_side1 || to_side2 {
                     if from_side1 != to_side1 || from_side2 != to_side2 {
                         let owner = card_instance.owner;
                         let mut context = TriggerContext::new();
                         context.add_card(state, *card);
-                        state.trigger_card_events(owner, comm, BehaviourTrigger::EnterLandscape, &TriggerContext::new())?;
+                        state.trigger_card_events(owner, comm, BehaviorTrigger::EnterLandscape, &TriggerContext::new())?;
                     }
                 }
 
-                comm.send_game_instruction(state, &self)
+                comm.send_game_instruction(state, &self).await
             }
             Instruction::DrawCard { player } => {
                 let player = state.get_player(*player);
@@ -97,7 +116,7 @@ impl Instruction {
                         Instruction::MoveCard {
                             card,
                             to: player.hand,
-                        }.process(state, comm)
+                        }.process(state, comm).await
                     }
                     None => {
                         todo!("instantly die")
@@ -126,29 +145,29 @@ impl Instruction {
                 if state.board.get_relevant_landscape(state, key).is_some() {
                     let mut context = TriggerContext::new();
                     context.add_card(state, key);
-                    state.trigger_card_events(*player, comm, BehaviourTrigger::Summon, &context)?;
-                    state.trigger_card_events(*player, comm, BehaviourTrigger::EnterLandscape, &context)?;
+                    state.trigger_card_events(*player, comm, BehaviorTrigger::Summon, &context)?;
+                    state.trigger_card_events(*player, comm, BehaviorTrigger::EnterLandscape, &context)?;
                 }
 
-                comm.send_game_instruction(state, &self)
+                comm.send_game_instruction(state, &self).await
             }
             Instruction::SetTurn { player } => {
                 state.current_turn = *player;
-                comm.send_game_instruction(state, &self)
+                comm.send_game_instruction(state, &self).await
             }
             Instruction::Clear { location } => {
                 state.locations.get_mut(*location).context("Tried to clear a non existent location")?.clear();
-                comm.send_game_instruction(state, &self)
+                comm.send_game_instruction(state, &self).await
             }
             Instruction::NotifySummon { card: card_key } => {
                 let card = state.card_instances.get(*card_key).context("Card instance not found during notify summon")?;
                 let mut context = TriggerContext::new();
                 context.add_card(state, *card_key);
-                state.trigger_card_events(card.owner, comm, BehaviourTrigger::Summon, &context)
+                state.trigger_card_events(card.owner, comm, BehaviorTrigger::Summon, &context)
             }
             Instruction::Destroy { card } => {
                 let card_instance = state.card_instances.get(*card).unwrap();
-                Instruction::MoveCard { card: *card, to: state.get_side(card_instance.owner).graveyard }.process(state, comm)
+                Instruction::MoveCard { card: *card, to: state.get_side(card_instance.owner).graveyard }.process(state, comm).await
             }
         }
     }
@@ -159,12 +178,12 @@ impl Instruction {
                 format!("stg")
             }
             Instruction::AddLandscapeSlot {
-                player, index, lid
+                player, index, location_id: lid
             } => format!(
                 "ads{}{}{}",
                 Tag::Player(player).build(state)?,
                 Tag::Integer(index).build(state)?,
-                Tag::ServerIID(lid).build(state)?,
+                Tag::ServerInstanceId(lid).build(state)?,
             ),
             Instruction::SetThaum {
                 player: player_id,
@@ -191,7 +210,7 @@ impl Instruction {
                 format!(
                     "crt{}{}{}{}",
                     Tag::CardData(state.card_instances.get(card_key).unwrap().clone()).build(state)?,
-                    Tag::ServerIID(iid).build(state)?,
+                    Tag::ServerInstanceId(iid).build(state)?,
                     Tag::Player(player).build(state)?,
                     Tag::Location(location).build(state)?,
                 )
