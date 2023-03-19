@@ -157,8 +157,6 @@ impl Behavior {
     }
 }
 
-// Triggers
-
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum BehaviorTrigger {
     TurnStart,
