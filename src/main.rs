@@ -1,12 +1,14 @@
 #![feature(let_chains)]
 #![allow(unused)]
 
+use std::fs;
 use color_eyre::eyre::Result;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::tungstenite::handshake::server::Request;
 use tokio_tungstenite::tungstenite::handshake::server::Response;
 
 use game::game_state;
+use crate::game::cards::card_deserialization::{Card, CardBehaviorTriggerWhenActivator};
 
 mod game;
 mod card_finder;
@@ -16,6 +18,12 @@ async fn main() -> Result<()> {
     color_eyre::install()?;
 
     println!("Starting TcpListener");
+
+    println!("{:#?}", toml::de::from_str::<Card>(&fs::read_to_string("C:\\Users\\eiscr\\Documents\\Landmark-Rust\\data\\cards\\set_001\\farm\\units\\piggie.toml").unwrap()).unwrap());
+
+    return Ok(());
+
+
 
     let server = TcpListener::bind("127.0.0.1:15076").await?;
 

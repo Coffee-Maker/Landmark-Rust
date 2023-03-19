@@ -34,12 +34,12 @@ pub async fn game_service(websocket: WebSocketStream<TcpStream>) -> Result<()> {
 
         let message = msg.into_text().unwrap();
 
-        let [instruction, data] = &message.split('|').collect::<Vec<_>>()[..] else {
+        let [instruction, data] = message.split('|').collect::<Vec<_>>()[..] else {
             println!("Could not execute invalid instruction.");
             continue;
         };
 
-        let result = match *instruction {
+        let result = match instruction {
             "start_game" => game_state.start_game(data, &mut communicator).await,
             "move_card" => game_state.player_moved_card(data, &mut communicator).await,
             "pass_turn" => game_state.player_pass_turn(data, &mut communicator).await,

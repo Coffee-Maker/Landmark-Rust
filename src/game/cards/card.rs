@@ -3,6 +3,7 @@ use std::fs;
 
 use color_eyre::eyre::{ContextCompat, eyre};
 use color_eyre::Result;
+use serde::Deserialize;
 use toml::Table;
 use walkdir::WalkDir;
 use crate::game::board::Board;
@@ -12,7 +13,7 @@ use crate::game::cards::card_behavior::Behavior;
 use crate::game::game_state::{CardKey, LocationKey, PlayerId, ServerInstanceId};
 use crate::game::state_resources::StateResources;
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Deserialize)]
 pub struct SlotPosition {
     x: i32,
     y: i32,

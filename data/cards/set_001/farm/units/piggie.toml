@@ -1,4 +1,4 @@
-﻿type = "unit"
+﻿category = "unit"
 name = "Piggie"
 description = "<i>An innocent little piggie.</i>"
 cost = 2
@@ -11,7 +11,7 @@ defense = 0
     description = "When this unit is declared to be attacked, select 3 or more units on your field"
 
     [[behavior.trigger]]
-    when = "this:declared_to_be_attacked"
+    when = "this:will_be_attacked"
 
     [[behavior.action]]
     then = "retire_selected_units"
