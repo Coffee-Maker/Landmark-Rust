@@ -5,7 +5,6 @@ use crate::game::game_state::{CardKey, GameState, PlayerId};
 
 use color_eyre::Result;
 use crate::game::game_communicator::GameCommunicator;
-use crate::game::instruction::Instruction;
 use crate::game::trigger_context::{ContextValue, TriggerContext};
 
 #[derive(Clone)]
@@ -16,6 +15,11 @@ pub struct Behavior {
 
 impl Behavior {
     pub fn from(table: Table) -> Result<Self> {
+        return Ok(Self {
+            triggers: vec![],
+            actions: vec![],
+        });
+
         let mut triggers = Vec::new();
         let mut actions = Vec::new();
 
@@ -43,17 +47,17 @@ impl Behavior {
         })
     }
 
-    pub fn trigger(&self, trigger: BehaviorTrigger, player: PlayerId, context: &TriggerContext, state: &GameState, comm: &mut GameCommunicator, card: CardKey) -> Result<()> {
-        let c = state.card_instances.get(card).ok_or_else(|| eyre!("Card not found during trigger"))?;
+    pub fn trigger(&self, trigger: BehaviorTrigger, player: PlayerId, context: &TriggerContext, state: &mut GameState, communicator: &mut GameCommunicator, card: CardKey) -> Result<()> {
+        let card_data = state.resources.card_instances.get(&card).ok_or_else(|| eyre!("Card not found during trigger"))?;
 
         for (t, m) in &self.triggers {
             if t.0 != trigger { continue; }
             if match t.1 {
-                TriggerTarget::You => c.owner == player,
-                TriggerTarget::Opponent => c.owner != player,
+                TriggerTarget::You => card_data.owner == player,
+                TriggerTarget::Opponent => card_data.owner != player,
                 TriggerTarget::Either => true,
                 TriggerTarget::This => {
-                    c.instance_id == context.get("iid").context("context does not contain iid")?.as_u64().context("iid is not a u64")?
+                    card_data.instance_id == context.get("iid").context("context does not contain iid")?.as_u64().context("iid is not a u64")?
                 }
             } == false { continue; }
 
@@ -145,13 +149,15 @@ impl Behavior {
             }
 
             for (action, inputs) in &self.actions {
-                (action)(state, comm, card, inputs)?;
+                //(action)(state, communicator, card, inputs)?;
             }
         }
 
         Ok(())
     }
 }
+
+// Triggers
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum BehaviorTrigger {
@@ -182,7 +188,7 @@ impl BehaviorTrigger {
         };
 
         // try to split at hyphen
-        let splits = trigger_type.split("-").collect::<Vec<&str>>();
+        let splits = trigger_type.split(":").collect::<Vec<&str>>();
 
         let trigger = match splits.last().unwrap().clone() {
             "turn_start" => Self::TurnStart,
@@ -209,7 +215,7 @@ impl BehaviorTrigger {
     }
 }
 
-pub type BehaviourAction = fn(&GameState, &mut GameCommunicator, CardKey, &Table) -> Result<()>;
+pub type BehaviourAction = fn(&mut GameState, &mut GameCommunicator, CardKey, &Table) -> Result<()>;
 
 pub fn get_function(action: &Table) -> Result<(BehaviourAction, Table)> {
     let action_type = action.get("type").context("Action type is undefined")?.as_str().context("Action type is not a string")?;
@@ -227,65 +233,65 @@ pub fn get_function(action: &Table) -> Result<(BehaviourAction, Table)> {
     }, inputs))
 }
 
-pub fn you_draw_card(state: &GameState, communicator: &mut GameCommunicator, card: CardKey, _table: &Table) -> Result<()> {
-    let card = state.card_instances.get(card).unwrap();
-    state.get_player(card.owner).draw_card(state, communicator)?;
+pub fn you_draw_card(state: &mut GameState, communicator: &mut GameCommunicator, card: CardKey, _table: &Table) -> Result<()> {
+    //let card = state.card_instances.get(&card).unwrap();
+    //state.get_player(card.owner).draw_card(state, communicator)?;
     Ok(())
 }
 
-pub fn replace_this(state: &GameState, communicator: &mut GameCommunicator, card: CardKey, table: &Table) -> Result<()> {
-    let with = table.get("with").context("Replace action has no 'with' input")?.as_str().context("Replace action 'with' input is not a string")?;
-    communicator.queue.enqueue(Instruction::Destroy { card });
-    let card_instance = state.card_instances.get(card).unwrap();
-    communicator.queue.enqueue(Instruction::CreateCard { id: with.into(), iid: fastrand::u64(..), location: card_instance.location, player: card_instance.owner });
+pub fn replace_this(state: &mut GameState, communicator: &mut GameCommunicator, card: CardKey, table: &Table) -> Result<()> {
+    //let with = table.get("with").context("Replace action has no 'with' input")?.as_str().context("Replace action 'with' input is not a string")?;
+    //let card_instance = state.card_instances.get(&card).unwrap();
+    //let target_location = card_instance.location;
+    //state.destroy_card(card, communicator);
+    //state.create_card(with.into(), target_location, card_instance.owner, communicator);
     Ok(())
 }
 
-pub fn replace_group(state: &GameState, communicator: &mut GameCommunicator, card: CardKey, table: &Table) -> Result<()> {
-    let count = table.get("count").context("Count is undefined")?.as_integer().context("Count is not an integer")? as usize;
-    let id = table.get("id").context("ID is undefined")?.as_str().context("ID is not a string")?;
-    let replace_with = table.get("replace_with").context("Replace with is undefined")?.as_str().context("Replace with is not a string")?;
-    let owner = table.get("owner").context("Owner is undefined")?.as_str().context("Owner is not a string")?;
-
-    let this_card = state.card_instances.get(card).unwrap();
-
-    let mut found = Vec::new();
-    found.push(card);
-
-    for key in state.board.get_cards_in_play(state) {
-        let card = state.card_instances.get(key).unwrap();
-        if card.card_id != id { continue; }
-        if card.instance_id == this_card.instance_id { continue; }
-        if card.is_alive(state) == false { continue; }
-        match owner {
-            "you" => {
-                if card.owner == this_card.owner {
-                    found.push(key);
-                }
-            }
-            "opponent" => {
-                if card.owner != this_card.owner {
-                    found.push(key);
-                }
-            }
-            "either" => {
-                found.push(key);
-            }
-            &_ => {}
-        }
-
-        if found.len() >= count { break; }
-    }
-
-    if found.len() >= count {
-        for i in 0..count { communicator.queue.enqueue(Instruction::Destroy { card: found[i] }); }
-        communicator.queue.enqueue(Instruction::CreateCard {
-            id: replace_with.into(),
-            iid: fastrand::u64(..),
-            location: this_card.location,
-            player: this_card.owner,
-        });
-    }
+pub fn replace_group(state: &mut GameState, communicator: &mut GameCommunicator, card: CardKey, table: &Table) -> Result<()> {
+    // let count = table.get("count").context("Count is undefined")?.as_integer().context("Count is not an integer")? as usize;
+    // let id = table.get("id").context("ID is undefined")?.as_str().context("ID is not a string")?;
+    // let replace_with = table.get("replace_with").context("Replace with is undefined")?.as_str().context("Replace with is not a string")?;
+    // let owner = table.get("owner").context("Owner is undefined")?.as_str().context("Owner is not a string")?;
+    //
+    // let this_card = state.card_instances.get(&card).unwrap();
+    //
+    // let mut found = Vec::new();
+    // found.push(card);
+    //
+    // for key in state.board.get_cards_in_play(state) {
+    //     let card = state.card_instances.get(&key).unwrap();
+    //     if card.card_id != id { continue; }
+    //     if card.instance_id == this_card.instance_id { continue; }
+    //     if card.is_alive(state) == false { continue; }
+    //     match owner {
+    //         "you" => {
+    //             if card.owner == this_card.owner {
+    //                 found.push(key);
+    //             }
+    //         }
+    //         "opponent" => {
+    //             if card.owner != this_card.owner {
+    //                 found.push(key);
+    //             }
+    //         }
+    //         "either" => {
+    //             found.push(key);
+    //         }
+    //         &_ => {}
+    //     }
+    //
+    //     if found.len() >= count { break; }
+    // }
+    //
+    // if found.len() >= count {
+    //     let target_location = this_card.location;
+    //
+    //     for i in 0..count {
+    //         state.destroy_card(found[i], communicator);
+    //     }
+    //     state.create_card(replace_with.into(), target_location, this_card.owner, communicator);
+    // }
 
     Ok(())
 }

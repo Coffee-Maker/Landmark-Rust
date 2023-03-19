@@ -1,14 +1,16 @@
 use std::collections::HashMap;
 use std::fs;
 
-use color_eyre::eyre::eyre;
+use color_eyre::eyre::{ContextCompat, eyre};
 use color_eyre::Result;
 use toml::Table;
 use walkdir::WalkDir;
+use crate::game::board::Board;
 
 use crate::game::cards::card::CardCategory::*;
 use crate::game::cards::card_behavior::Behavior;
-use crate::game::game_state::{CardKey, GameState, LocationKey, PlayerId, ServerInstanceId};
+use crate::game::game_state::{CardKey, LocationKey, PlayerId, ServerInstanceId};
+use crate::game::state_resources::StateResources;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct SlotPosition {
@@ -47,13 +49,12 @@ pub struct CardData {
     pub card_types: Vec<String>,
 }
 
-#[derive(Deserialize)]
 struct CardFile {
     name: String,
     description: String,
     cost: u64,
     cart_types: Vec<String>,
-    card_category:
+    card_category: CardCategory
 }
 
 // Implement debug for card data
@@ -74,9 +75,9 @@ impl std::fmt::Debug for CardData {
 }
 
 impl CardData {
-    pub fn is_alive(&self, state: &GameState) -> bool {
-        let graveyard1 = state.locations.get(state.board.side_1.graveyard).unwrap();
-        let graveyard2 = state.locations.get(state.board.side_2.graveyard).unwrap();
+    pub fn is_alive(&self, resources: &StateResources, board: &Board) -> bool {
+        let graveyard1 = resources.locations.get(&board.side_1.graveyard).unwrap();
+        let graveyard2 = resources.locations.get(&board.side_2.graveyard).unwrap();
         return graveyard1.contains(self.key) == false && graveyard2.contains(self.key) == false;
     }
 }
@@ -107,7 +108,7 @@ impl CardRegistry {
                 } else {
                     Vec::new()
                 };
-            let card_type = text.get("type").unwrap().as_str().unwrap();
+            let card_category = text.get("type").unwrap().as_str().unwrap();
 
             let file_name = path.file_name().unwrap().to_str().unwrap();
             
@@ -135,7 +136,7 @@ impl CardRegistry {
                 description: description.to_string(),
                 cost: cost as u32,
                 card_types: types.iter().map(|x| x.as_str().unwrap().to_string()).collect(),
-                card_category: match card_type {
+                card_category: match card_category {
                     "landscape" => {
                         let slots = text.get("slots").unwrap().as_array().unwrap().clone();
                         let slots = slots.into_iter().map(|s| {
@@ -163,7 +164,7 @@ impl CardRegistry {
                     }
                     "item" => Item,
                     "command" => Command,
-                    _ => return Err(eyre!("Invalid card type: {}", card_type)),
+                    _ => return Err(eyre!("Invalid card type: {}", card_category)),
                 },
             };
 
@@ -176,10 +177,10 @@ impl CardRegistry {
         })
     }
 
-    pub fn create_card(&self, id: &str, iid: ServerInstanceId, owner: PlayerId) -> Result<CardData> {
+    pub fn instance_card(&self, id: &str, instance_id: ServerInstanceId, owner: PlayerId) -> Result<CardData> {
         let card = self.card_registry.get(id).ok_or_else(|| eyre!("Card not found: {}", id))?;
         let mut card = card.clone();
-        card.instance_id = iid;
+        card.instance_id = instance_id;
         card.owner = owner;
         Ok(card)
     }

@@ -1,5 +1,7 @@
 ﻿use std::collections::HashMap;
-use crate::game::game_state::{CardKey, GameState};
+use crate::game::board::Board;
+use crate::game::game_state::CardKey;
+use crate::game::state_resources::StateResources;
 
 pub struct TriggerContext {
     values: HashMap<String, ContextValue>,
@@ -12,8 +14,8 @@ impl TriggerContext {
         }
     }
     
-    pub fn add_card(&mut self, state: &GameState, card_key: CardKey) {
-        let card = state.card_instances.get(card_key).unwrap();
+    pub fn add_card(&mut self, board: &Board, resources: &StateResources, card_key: CardKey) {
+        let card = resources.card_instances.get(&card_key).unwrap();
         self.values.insert("iid".into(), ContextValue::U64(card.instance_id));
         self.values.insert("id".into(), ContextValue::String(card.card_id.clone()));
         self.values.insert("type".into(), ContextValue::Array(card.card_types.iter().map(|s| ContextValue::String(s.clone())).collect()));
@@ -21,11 +23,11 @@ impl TriggerContext {
         self.values.insert("name".into(), ContextValue::String(card.name.clone()));
         self.values.insert("description".into(), ContextValue::String(card.description.clone()));
 
-        match state.board.get_relevant_landscape(state, card.key) {
+        match board.get_relevant_landscape(resources, card.key) {
             Some(lid) => {
-                let landscape = state.locations.get(lid).unwrap();
+                let landscape = resources.locations.get(&lid).unwrap();
                 let landscape_card = landscape.get_card().unwrap();
-                let landscape_types = &state.card_instances.get(landscape_card).unwrap().card_types;
+                let landscape_types = &resources.card_instances.get(&landscape_card).unwrap().card_types;
                 self.insert("landscape_type", ContextValue::Array(landscape_types.iter().map(|c| ContextValue::String(c.to_string())).collect()));
             }
             None => {}

@@ -1,51 +1,51 @@
 use color_eyre::Result;
 use futures_util::{SinkExt, StreamExt};
+use owo_colors::{OwoColorize, Rgb, Style};
 use tokio::net::TcpStream;
-use tokio_tungstenite::WebSocketStream;
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::WebSocketStream;
 
-use crate::game::game_state::GameState;
-use crate::game::instruction::{Instruction, InstructionQueue};
+use crate::game::instruction::InstructionToClient;
 
 pub struct GameCommunicator {
     websocket: WebSocketStream<TcpStream>,
-    pub queue: InstructionQueue,
+    server_style: Style,
+    client_style: Style,
 }
 
 impl GameCommunicator {
-    pub async fn new(websocket: WebSocketStream<TcpStream>) -> Self {
+    pub fn new(websocket: WebSocketStream<TcpStream>) -> Self {
         Self {
             websocket,
-            queue: InstructionQueue::new(),
+            server_style: Style::new().color(Rgb(50, 150, 200)).bold(),
+            client_style: Style::new().color(Rgb(50, 200, 150)).bold(),
         }
-    }
-
-    pub async fn process_instructions(&mut self, state: &mut GameState) -> Result<()> {
-        while self.queue.len() > 0 {
-            let ins = self.queue.dequeue().unwrap();
-            ins.process(state, self).await?
-        }
-        Ok(())
     }
 
     pub async fn send_info(&mut self, info: &str) -> Result<()> {
-        self.websocket.send(Message::Text(format!("inf{}", info))).await?;
+        println!("{} {}: {}", "(Server)".style(self.server_style), "Info".color(Rgb(150, 150, 150)), info);
+        self.websocket.send(Message::Text(format!("info|{}", info))).await?;
+        Ok(())
+    }
+
+    pub async fn send_warning(&mut self, warning: &str) -> Result<()> {
+        println!("{} {}: {}", "(Server)".style(self.server_style), "Warning".color(Rgb(250, 200, 30)), warning);
+        self.websocket.send(Message::Text(format!("warn|{}", warning))).await?;
         Ok(())
     }
 
     pub async fn send_error(&mut self, error: &str) -> Result<()> {
-        println!("(Server) \x1b[31m\x1bError: {error}\x1b[0m");
-        self.websocket.send(Message::Text(format!("err{}", error))).await?;
+        println!("{} {}: {}", "(Server)".style(self.server_style), "Error".color(Rgb(255, 50, 50)), error);
+        self.websocket.send(Message::Text(format!("error|{}", error))).await?;
         Ok(())
     }
 
     pub async fn send_game_instruction(
         &mut self,
-        state: &mut GameState,
-        instruction: &Instruction,
+        instruction: InstructionToClient,
     ) -> Result<()> {
-        let message = instruction.clone().build(state)?;
-        println!("(Server) \x1b[32m{}\x1b[0m", message);
+        let message = instruction.clone().build().await?;
+        println!("{} {}: {}", "(Server)".style(self.server_style), "Command".color(Rgb(80, 150, 120)), message.color(Rgb(120, 120, 120)));
         self.websocket.send(Message::Text(message)).await?;
         Ok(())
     }
@@ -56,6 +56,8 @@ impl GameCommunicator {
     }
 
     pub async fn read_message(&mut self) -> Result<Message> {
-        self.websocket.next().await.expect("Failed to read message").map_err(|e| e.into())
+        let msg = self.websocket.next().await.expect("Failed to read message")?;
+        println!("{} {}", "(Client)".style(self.client_style), msg);
+        Ok(msg)
     }
 }

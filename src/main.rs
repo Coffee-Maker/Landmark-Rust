@@ -1,7 +1,7 @@
 #![feature(let_chains)]
+#![allow(unused)]
 
 use color_eyre::eyre::Result;
-use owo_colors::OwoColorize;
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::tungstenite::handshake::server::Request;
 use tokio_tungstenite::tungstenite::handshake::server::Response;
@@ -13,12 +13,6 @@ mod card_finder;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    println!("{} {}", "(Server)".cyan().bold(), "Info: Did you know that the dot on top of the letter 'i' is called a tittle?".bright_black());
-    println!("{} {}", "(Server)".cyan().bold(), "Warning: I have no idea who uses these".yellow());
-    println!("{} {}", "(Server)".cyan().bold(), "Error: You made something and then it didn't work :(".red());
-    println!("{} {}", "(Server)".cyan().bold(), "Command: tst//do you/!//like my/!//command format/!".green());
-    println!("{} {}", "(Client)".yellow().bold(), "Incoming message here");
-
     color_eyre::install()?;
 
     println!("Starting TcpListener");

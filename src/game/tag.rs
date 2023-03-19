@@ -1,27 +1,23 @@
-use crate::game::game_state::{CardKey, GameState, LocationKey, PlayerId, ServerInstanceId};
+use crate::game::game_state::{PlayerId, ServerInstanceId};
 use color_eyre::eyre::ContextCompat;
 use color_eyre::Result;
 use crate::game::cards::card::{CardData, CardCategory};
 
 pub enum Tag {
     Player(PlayerId),
-    Integer(u32),
+    U64(u64),
     String(String),
     CardData(CardData),
     ServerInstanceId(ServerInstanceId),
-    CardInstance(CardKey),
-    Location(LocationKey),
 }
 
 impl Tag {
-    pub fn build(self, state: &mut GameState) -> Result<String> {
+    pub fn build(self) -> Result<String> {
         Ok(format!("//{}/!", (match self {
             Tag::Player(p) => format!("{}", p as u32),
-            Tag::Integer(t) => format!("{}", t),
+            Tag::U64(t) => format!("{}", t),
             Tag::String(c) => format!("{}", c),
             Tag::ServerInstanceId(c) => format!("{}", c),
-            Tag::CardInstance(c) => format!("{}", state.card_instances.get(c).context("Tried to create tag for non existent card")?.instance_id),
-            Tag::Location(l) => format!("{}", state.locations.get(l).context("Tried to create tag for non existent location")?.get_lid()),
             Tag::CardData(c) => {
                 let id = c.card_id.clone();
                 let name = c.name.clone();

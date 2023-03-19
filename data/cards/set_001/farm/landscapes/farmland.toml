@@ -18,7 +18,7 @@ slots = [
 
 [[behaviour]]
     [[behaviour.trigger]]
-    type = "you-summon"
+    type = "you:summon"
     match = { type-contains = ["Animal"] }
 
     [[behaviour.action]]
@@ -26,12 +26,12 @@ slots = [
 
 # New format
 #[[behavior]]
-#[[behavior.trigger]]
-#when = "you:summon"
-#and = [
-#    { "type:is_one_of" = ["Animal"] }
-#]
+#    [[behavior.trigger]]
+#    when = "you:summon"
+#    and = [
+#        { "type:is_one_of" = ["Animal"] }
+#    ]
 #
 #[[behavior.action]]
-#then = "draw_card"
-#with = { target = "you", amount = 3 }
+#    then = "draw_card"
+#    with = { target = "you", amount = 3 }

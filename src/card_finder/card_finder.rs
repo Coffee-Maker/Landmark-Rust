@@ -3,7 +3,7 @@ use tokio::net::TcpStream;
 use tokio_tungstenite::WebSocketStream;
 
 pub async fn finder_service(_websocket: WebSocketStream<TcpStream>) -> Result<()> {
-    println!("TODO: Implement card finder");
+    // println!("TODO: Implement card finder");
     Ok(())
 
     // println!("Starting card finder service");

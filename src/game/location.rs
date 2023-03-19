@@ -1,11 +1,12 @@
 use crate::game::game_state::{CardKey, ServerInstanceId};
 
+use color_eyre::Result;
 
 pub trait Location {
-    fn set_lid(&mut self, lid: ServerInstanceId);
-    fn get_lid(&self) -> ServerInstanceId;
+    fn set_location_id(&mut self, lid: ServerInstanceId);
+    fn get_location_id(&self) -> ServerInstanceId;
 
-    fn add_card(&mut self, card: CardKey);
+    fn add_card(&mut self, card: CardKey) -> Result<()>;
     fn remove_card(&mut self, card: CardKey);
     fn clear(&mut self);
     

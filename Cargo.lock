@@ -336,6 +336,7 @@ dependencies = [
  "color-eyre",
  "fastrand",
  "futures-util",
+ "once_cell",
  "owo-colors",
  "serde",
  "slotmap",

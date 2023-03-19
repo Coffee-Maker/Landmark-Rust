@@ -9,3 +9,5 @@ pub mod location;
 pub mod player;
 pub mod tag;
 pub mod trigger_context;
+pub mod highlight_type;
+pub mod state_resources;
