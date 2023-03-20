@@ -7,7 +7,10 @@ use serde_enum_str::Deserialize_enum_str;
 
 #[derive(Deserialize, Debug)]
 pub struct Card {
+    #[serde(skip_deserializing)]
+    pub id: String,
     pub name: String,
+    #[serde(default)]
     pub description: String,
     pub cost: u64,
     pub types: Vec<String>,
@@ -15,18 +18,18 @@ pub struct Card {
     #[serde(flatten)]
     pub card_category: CardCategory,
 
-    #[serde(rename = "behavior")]
+    #[serde(rename = "behavior", default)]
     pub behaviors: Vec<CardBehavior>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq)]
 pub struct SlotPosition {
     pub x: i32,
     pub y: i32,
     pub z: i32,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "snake_case", tag = "category")]
 pub enum CardCategory {
     Hero,
@@ -95,6 +98,8 @@ pub enum CardBehaviorTriggerWhenName {
     DrawCard,
     TurnEnded,
     TurnStarted,
+    WillEnterLandscape,
+    HasEnteredLandscape
 }
 
 impl<'de> Deserialize<'de> for CardBehaviorTriggerWhen {
@@ -127,9 +132,67 @@ impl<'de> Deserialize<'de> for CardBehaviorTriggerWhen {
 }
 
 #[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum CardBehaviorActionPlayerTarget {
+    Owner,
+    Opponent,
+    Random,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum CardBehaviorActionUnitTarget {
+    This,
+    Find, // Todo: Should use the same syntax as the trigger's "and" field
+    FindMany,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum CardBehaviorActionCardTarget {
+    This,
+    Find,
+    FindMany,
+}
+
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case", tag = "then", content = "with")]
 pub enum CardBehaviorAction {
     RetireSelectedUnits {
         amount: u64
-    }
+    },
+    DrawCard {
+        target: CardBehaviorActionPlayerTarget,
+    },
+    Replace {
+        target: CardBehaviorActionUnitTarget,
+        replacement: String,
+    },
+    AddTypes {
+        target: CardBehaviorActionUnitTarget,
+        types: Vec<String>,
+    },
+    ModifyAttack {
+        target: CardBehaviorActionUnitTarget,
+        amount: i32,
+    },
+    ModifyHealth {
+        target: CardBehaviorActionUnitTarget,
+        amount: i32,
+    },
+    ModifyDefense {
+        target: CardBehaviorActionUnitTarget,
+        amount: i32,
+    },
+    ModifyCost {
+        target: CardBehaviorActionUnitTarget,
+        amount: i32,
+    },
+    Destroy {
+        target: CardBehaviorActionCardTarget,
+    },
+    Summon {
+        target: CardBehaviorActionUnitTarget,
+        card: String,
+    },
 }

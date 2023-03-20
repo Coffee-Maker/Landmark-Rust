@@ -9,14 +9,14 @@ use once_cell::sync::Lazy;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_tungstenite::WebSocketStream;
-use crate::game::board::Board;
 
+use crate::game::board::Board;
 use crate::game::card_collection::CardCollection;
 use crate::game::card_slot::CardSlot;
-use crate::game::cards::card_behavior::BehaviorTrigger;
 use crate::game::cards::card_registry::CardRegistry;
 use crate::game::game_communicator::GameCommunicator;
-use crate::game::game_state::PlayerId::{Player1, Player2};
+use crate::game::id_types::{CardInstanceId, LocationId, PlayerId, ServerInstanceId};
+use crate::game::id_types::PlayerId::{Player1, Player2};
 use crate::game::instruction::InstructionToClient;
 use crate::game::player::Player;
 use crate::game::state_resources::StateResources;
@@ -65,45 +65,6 @@ pub static CARD_REGISTRY: Lazy<Mutex<CardRegistry>> = Lazy::new(|| {
     Mutex::new(CardRegistry::from_directory("data/cards").unwrap())
 });
 
-pub type ServerInstanceId = u64;
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct LocationId(ServerInstanceId);
-
-impl FromStr for LocationId {
-    type Err = ParseIntError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(s.parse::<ServerInstanceId>()?))
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct CardInstanceId(ServerInstanceId);
-
-impl FromStr for CardInstanceId {
-    type Err = ParseIntError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(s.parse::<ServerInstanceId>()?))
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum PlayerId {
-    Player1 = 0,
-    Player2 = 1,
-}
-
-impl Display for PlayerId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Player1 => write!(f, "Player 1"),
-            Player2 => write!(f, "Player 2"),
-        }
-    }
-}
-
 pub struct GameState {
     pub current_turn: PlayerId,
     player_1: Player,
@@ -115,8 +76,8 @@ pub struct GameState {
 }
 
 pub mod location_ids {
-    use crate::game::game_state::{LocationId, PlayerId};
-    use crate::game::game_state::PlayerId::Player1;
+    use crate::game::id_types::PlayerId::Player1;
+    use crate::game::id_types::{LocationId, PlayerId};
     use crate::game::player::Player;
 
     pub const PLAYER_1_DECK: LocationId = LocationId(100);
@@ -168,16 +129,16 @@ impl GameState {
     }
 
     pub async fn start_game(mut self: &mut Self, data: &str, communicator: &mut GameCommunicator) -> Result<()> {
-        self.resources.add_location(location_ids::PLAYER_1_DECK, Box::new(CardCollection::new()));
-        self.resources.add_location(location_ids::PLAYER_1_HAND, Box::new(CardCollection::new()));
-        self.resources.add_location(location_ids::PLAYER_2_DECK, Box::new(CardCollection::new()));
-        self.resources.add_location(location_ids::PLAYER_2_HAND, Box::new(CardCollection::new()));
-        self.board.side_1.hero = self.resources.add_location(location_ids::PLAYER_1_HERO, Box::new(CardSlot::new()));
-        self.board.side_2.hero = self.resources.add_location(location_ids::PLAYER_2_HERO, Box::new(CardSlot::new()));
-        self.board.side_1.landscape = self.resources.add_location(location_ids::PLAYER_1_LANDSCAPE, Box::new(CardSlot::new()));
-        self.board.side_2.landscape = self.resources.add_location(location_ids::PLAYER_2_LANDSCAPE, Box::new(CardSlot::new()));
-        self.board.side_1.graveyard = self.resources.add_location(location_ids::PLAYER_1_GRAVEYARD, Box::new(CardCollection::new()));
-        self.board.side_2.graveyard = self.resources.add_location(location_ids::PLAYER_2_GRAVEYARD, Box::new(CardCollection::new()));
+        self.resources.insert_location(Box::new(CardCollection::new(location_ids::PLAYER_1_DECK)));
+        self.resources.insert_location(Box::new(CardCollection::new(location_ids::PLAYER_1_HAND)));
+        self.resources.insert_location(Box::new(CardCollection::new(location_ids::PLAYER_2_DECK)));
+        self.resources.insert_location(Box::new(CardCollection::new(location_ids::PLAYER_2_HAND)));
+        self.resources.insert_location(Box::new(CardSlot::new(location_ids::PLAYER_1_HERO)));
+        self.resources.insert_location(Box::new(CardSlot::new(location_ids::PLAYER_2_HERO)));
+        self.resources.insert_location(Box::new(CardSlot::new(location_ids::PLAYER_1_LANDSCAPE)));
+        self.resources.insert_location(Box::new(CardSlot::new(location_ids::PLAYER_2_LANDSCAPE)));
+        self.resources.insert_location(Box::new(CardCollection::new(location_ids::PLAYER_1_GRAVEYARD)));
+        self.resources.insert_location(Box::new(CardCollection::new(location_ids::PLAYER_2_GRAVEYARD)));
         self.resources.reset_game(communicator).await?;
 
         // Populate decks
@@ -264,27 +225,29 @@ impl GameState {
         }
     }
 
-    pub fn trigger_card_events(&mut self, resources: &mut StateResources, trigger_owner: PlayerId, communicator: &mut GameCommunicator, trigger: BehaviorTrigger, context: &TriggerContext) -> Result<()> {
-        let mut locations = vec![
-            self.board.side_1.hero, self.board.side_1.landscape, self.board.side_1.graveyard,
-            self.board.side_1.hero, self.board.side_1.landscape, self.board.side_2.graveyard,
-        ];
-
-        locations.append(&mut self.board.side_1.field.clone());
-        locations.append(&mut self.board.side_2.field.clone());
-
-        for location in locations {
-            let location = resources.locations.get(&location).unwrap();
-
-            for key in location.get_cards() {
-                let card = resources.card_instances.get(&key).unwrap();
-
-                for behavior in &card.behaviors {
-                    behavior.trigger(trigger, trigger_owner, context, self, communicator, key)?;
-                }
-            }
-        }
-
-        Ok(())
-    }
+    // Todo: Reimplement this
+    // pub fn trigger_card_events(&mut self, resources: &mut StateResources, trigger_owner: PlayerId, communicator: &mut GameCommunicator, trigger: BehaviorTrigger, context: &TriggerContext) -> Result<()> {
+    //     let mut locations = vec![
+    //         self.board.side_1.hero, self.board.side_1.landscape, self.board.side_1.graveyard,
+    //         self.board.side_1.hero, self.board.side_1.landscape, self.board.side_2.graveyard,
+    //     ];
+    //
+    //     locations.append(&mut self.board.side_1.field.clone());
+    //     locations.append(&mut self.board.side_2.field.clone());
+    //
+    //     for location in locations {
+    //         let location = resources.locations.get(&location).unwrap();
+    //
+    //         for key in location.get_cards() {
+    //             let card = resources.card_instances.get(&key).unwrap();
+    //
+    //             for behavior in &card.behaviors {
+    //                 // Todo: Reimplement this
+    //                 // behavior.trigger(trigger, trigger_owner, context, self, communicator, key)?;
+    //             }
+    //         }
+    //     }
+    //
+    //     Ok(())
+    // }
 }

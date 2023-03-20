@@ -1,4 +1,4 @@
-﻿type = "unit"
+﻿category = "unit"
 name = "Water Sprite"
 cost = 1
 types = ["Water"]
@@ -9,8 +9,8 @@ defense = 0
 [[behaviour]]
 description = "If a third 'Water Sprite' enters the field, replace it with a 'Water Golem' and discard the other 2."
     [[behaviour.trigger]]
-    type = "this-summon"
+    when = "this:has_been_summoned"
 
     [[behaviour.action]]
-    type = "replace_group"
-    inputs = { id = "water_sprite", count = 3, replace_with = "water_golem", owner = "you" }
+    then = "replace"
+    with = { target = "FindMany" } # Needs further implementation

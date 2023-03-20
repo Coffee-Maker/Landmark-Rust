@@ -1,4 +1,4 @@
-type = "landscape"
+category = "landscape"
 name = "Farmland"
 description = "A test landscape."
 cost = 2
@@ -16,13 +16,16 @@ slots = [
     { x = 4, y = 0, z = 1 },
 ]
 
-[[behaviour]]
-    [[behaviour.trigger]]
-    type = "you:summon"
-    match = { type-contains = ["Animal"] }
+[[behavior]]
+    description = "When you summon an Animal, draw a card."
 
-    [[behaviour.action]]
-    type = "you_draw_card"
+    [[behavior.trigger]]
+    when = "owned:will_be_summoned"
+    and = { "type:contains" = ["Animal"] }
+
+    [[behavior.action]]
+    then = "draw_card"
+    with = { target = "owner" }
 
 # New format
 #[[behavior]]

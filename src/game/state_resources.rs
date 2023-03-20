@@ -3,10 +3,11 @@ use color_eyre::eyre::ContextCompat;
 use crate::game::board::Board;
 use crate::game::cards::card_instance::CardInstance;
 use crate::game::game_communicator::GameCommunicator;
-use crate::game::game_state::{CARD_REGISTRY, CardInstanceId, LocationId, PlayerId, ServerInstanceId};
+use crate::game::game_state::CARD_REGISTRY;
 use crate::game::instruction::InstructionToClient;
 
 use color_eyre::Result;
+use crate::game::id_types::{CardInstanceId, LocationId, PlayerId, ServerInstanceId};
 use crate::game::location::Location;
 
 type ThreadSafeLocation = dyn Location + Send + Sync;
@@ -24,10 +25,8 @@ impl StateResources {
         }
     }
 
-    pub fn add_location(&mut self, location_instance_id: LocationId, mut location: Box<ThreadSafeLocation>) -> LocationId {
-        location.set_location_id(location_instance_id);
-        self.locations.insert(location_instance_id, location);
-        location_instance_id
+    pub fn insert_location(&mut self, mut location: Box<ThreadSafeLocation>) {
+        self.locations.insert(location.get_location_id(), location);
     }
 
     pub async fn reset_game(&mut self, communicator: &mut GameCommunicator) -> Result<()> {
@@ -79,31 +78,31 @@ impl StateResources {
     }
 
     pub async fn create_card(&mut self, id: &str, location: LocationId, owner: PlayerId, communicator: &mut GameCommunicator) -> Result<()> {
-        let card_key = fastrand::u64(..);
+        let card_instance_id = CardInstanceId(fastrand::u64(..));
 
         let loc = self.locations
             .get_mut(&location)
             .context("Tried to create a card to a location that does not exist")?;
 
-        let mut card = match (*CARD_REGISTRY.lock().await).instance_card(&id, card_key, owner) {
+        let mut card = match (*CARD_REGISTRY.lock().await).instance_card(&id, card_instance_id, location, owner) {
             Ok(card) => card,
             Err(e) => {
                 eprintln!("{e}");
                 return Ok(());
             }
         };
-        card.instance_id = card_key;
+        card.instance_id = card_instance_id;
         card.location = location;
 
         communicator.send_game_instruction(InstructionToClient::CreateCard {
             card_data: card.clone(),
-            instance_id: card_key,
+            instance_id: card_instance_id,
             player_id: owner,
             location_id: loc.get_location_id()
         }).await?;
 
-        self.card_instances.insert(card_key, card);
-        loc.add_card(card_key)?;
+        self.card_instances.insert(card_instance_id, card);
+        loc.add_card(card_instance_id)?;
 
         // Todo: Reimplement this
         // if self.board.get_relevant_landscape(&self.card_instances, card_key).is_some() {

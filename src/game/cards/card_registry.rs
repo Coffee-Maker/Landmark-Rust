@@ -7,7 +7,7 @@ use walkdir::WalkDir;
 
 use crate::game::cards::card_deserialization::Card;
 use crate::game::cards::card_instance::CardInstance;
-use crate::game::game_state::{CardInstanceId, LocationId, PlayerId};
+use crate::game::id_types::{CardInstanceId, LocationId, PlayerId};
 
 pub struct CardRegistry {
     card_registry: HashMap<String, &'static Card>,
@@ -19,10 +19,19 @@ impl CardRegistry {
 
         let mut registry: HashMap<String, &'static Card> = HashMap::new();
 
+
         for dir in WalkDir::new(path).into_iter().filter_map(|entry| entry.ok()) {
+            if dir.path().is_file() == false {
+                continue;
+            }
+
+            let id = dir.path().with_extension("").file_name().and_then(|name| name.to_str()).unwrap().to_string();
+            println!("Loading card: {}", id);
+            let mut card: Box<Card> = Box::new(toml::from_str(&fs::read_to_string(dir.path())?)?);
+            card.id = id.clone();
             registry.insert(
-                dir.path().with_extension("").file_name().and_then(|name| name.to_str()).unwrap().to_string(),
-                Box::leak(Box::new(toml::from_str(&fs::read_to_string(dir.path())?)?))
+                id,
+                Box::leak(card)
             );
         }
 

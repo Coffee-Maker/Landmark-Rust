@@ -19,12 +19,6 @@ async fn main() -> Result<()> {
 
     println!("Starting TcpListener");
 
-    println!("{:#?}", toml::de::from_str::<Card>(&fs::read_to_string("C:\\Users\\eiscr\\Documents\\Landmark-Rust\\data\\cards\\set_001\\farm\\units\\piggie.toml").unwrap()).unwrap());
-
-    return Ok(());
-
-
-
     let server = TcpListener::bind("127.0.0.1:15076").await?;
 
     while let Ok((stream, _)) = server.accept().await {

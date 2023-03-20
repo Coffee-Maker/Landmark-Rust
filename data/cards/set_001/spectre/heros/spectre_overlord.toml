@@ -1,4 +1,4 @@
-type = "hero"
+category = "hero"
 name = "Spectre Overlord"
 description = "A test hero."
 cost = 5

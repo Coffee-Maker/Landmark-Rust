@@ -1,10 +1,10 @@
 use color_eyre::eyre::{ContextCompat, eyre};
 use color_eyre::Result;
 use crate::game::board::Board;
+use crate::game::cards::card_deserialization::CardCategory;
 
-use crate::game::cards::card_instance::CardCategory;
 use crate::game::game_communicator::GameCommunicator;
-use crate::game::game_state::{LocationId, PlayerId};
+use crate::game::id_types::{LocationId, PlayerId};
 use crate::game::instruction::InstructionToClient;
 use crate::game::state_resources::StateResources;
 
@@ -47,7 +47,7 @@ impl Player {
         // Find hero and landscape
         let heroes = resources.locations.get(&self.deck).context("ya nan")?.get_cards().iter()
             .filter_map(|&card_key| {
-                if let Some(card) = resources.card_instances.get(&card_key) && card.card_category == CardCategory::Hero {
+                if let Some(card_instance) = resources.card_instances.get(&card_key) && card_instance.card.card_category == CardCategory::Hero {
                     Some(card_key)
                 } else {
                     None
@@ -67,7 +67,7 @@ impl Player {
 
         let landscapes = resources.locations.get(&self.deck).context("ya nan")?.get_cards().iter()
             .filter_map(|&card_key| {
-                if let Some(card) = resources.card_instances.get(&card_key) && matches!(card.card_category, CardCategory::Landscape { .. }) {
+                if let Some(card_instance) = resources.card_instances.get(&card_key) && matches!(card_instance.card.card_category, CardCategory::Landscape { .. }) {
                     Some(card_key)
                 } else {
                     None

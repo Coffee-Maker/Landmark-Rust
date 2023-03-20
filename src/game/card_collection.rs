@@ -1,20 +1,20 @@
 use color_eyre::Result;
 
-use crate::game::game_state::{CardInstanceId, ServerInstanceId};
+use crate::game::id_types::{CardInstanceId, LocationId, ServerInstanceId};
 use crate::game::location::Location;
 
 pub struct CardCollection {
     pub cards: Vec<CardInstanceId>,
-    pub lid: ServerInstanceId,
+    pub location_id: LocationId,
 }
 
 impl Location for CardCollection {
-    fn set_location_id(&mut self, lid: ServerInstanceId) {
-        self.lid = lid;
+    fn set_location_id(&mut self, lid: LocationId) {
+        self.location_id = lid;
     }
 
-    fn get_location_id(&self) -> ServerInstanceId {
-        self.lid
+    fn get_location_id(&self) -> LocationId {
+        self.location_id
     }
 
     fn add_card(&mut self, card: CardInstanceId) -> Result<()> {
@@ -42,10 +42,10 @@ impl Location for CardCollection {
 }
 
 impl CardCollection {
-    pub fn new() -> Self {
+    pub fn new(location_id: LocationId) -> Self {
         Self {
             cards: vec![],
-            lid: 0,
+            location_id,
         }
     }
 }

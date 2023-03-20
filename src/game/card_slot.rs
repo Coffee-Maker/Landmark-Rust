@@ -1,30 +1,30 @@
 use color_eyre::eyre::eyre;
-use crate::game::game_state::{CardInstanceId, ServerInstanceId};
 use crate::game::location::Location;
 
 use color_eyre::Result;
+use crate::game::id_types::{CardInstanceId, LocationId, ServerInstanceId};
 
 pub struct CardSlot {
-    pub lid: ServerInstanceId,
+    pub location_id: LocationId,
     pub card: Option<CardInstanceId>,
 }
 
 impl CardSlot {
-    pub fn new() -> CardSlot {
+    pub fn new(location_id: LocationId) -> CardSlot {
         CardSlot {
-            lid : 0,
+            location_id,
             card : None,
         }
     }
 }
 
 impl Location for CardSlot {
-    fn set_location_id(&mut self, lid: ServerInstanceId) {
-        self.lid = lid;
+    fn set_location_id(&mut self, lid: LocationId) {
+        self.location_id = lid;
     }
 
-    fn get_location_id(&self) -> ServerInstanceId {
-        self.lid
+    fn get_location_id(&self) -> LocationId {
+        self.location_id
     }
 
     fn add_card(&mut self, _card: CardInstanceId) -> Result<()> {

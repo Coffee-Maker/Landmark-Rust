@@ -1,15 +1,15 @@
 use color_eyre::Result;
 use color_eyre::eyre::{ContextCompat, eyre};
 use crate::game::card_slot::CardSlot;
-use crate::game::cards::card_instance::CardCategory;
+use crate::game::cards::card_deserialization::CardCategory;
 use crate::game::game_communicator::GameCommunicator;
-use crate::game::game_state::{CardInstanceId, LocationId, PlayerId};
-use crate::game::game_state::PlayerId::{Player1, Player2};
+use crate::game::id_types::PlayerId::{Player1, Player2};
 use crate::game::instruction::InstructionToClient;
 use crate::game::state_resources::StateResources;
 
 use crate::game::game_state;
 use crate::game::game_state::location_ids;
+use crate::game::id_types::{CardInstanceId, LocationId, PlayerId};
 
 #[derive(Clone)]
 pub struct Board {
@@ -101,7 +101,7 @@ impl BoardSide {
     pub async fn add_landscape_slots(&mut self, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<()> {
         let location = resources.locations.get(&self.landscape).context("Landscape location does not exist")?;
         let card_instance = resources.card_instances.get(&location.get_card().context("Landscape card was not provided")?).context(format!("Card in landscape slot for {} does not exist", self.owner))?;
-        let landscape = card_instance.card_category.clone();
+        let landscape = &card_instance.card.card_category;
 
         match landscape {
             CardCategory::Landscape { slots } => {
@@ -117,8 +117,8 @@ impl BoardSide {
                     }).await?;
                     i += 1;
 
-                    let new_loc = CardSlot::new();
-                    resources.add_location(location_id, Box::new(new_loc));
+                    let new_loc = CardSlot::new(location_id);
+                    resources.insert_location(Box::new(new_loc));
                     self.field.push(location_id);
                 }
                 Ok(())

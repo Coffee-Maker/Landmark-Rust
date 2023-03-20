@@ -1,6 +1,5 @@
-use crate::game::game_state::{CardInstanceId, LocationId, ServerInstanceId};
-
 use color_eyre::Result;
+use crate::game::id_types::{CardInstanceId, LocationId, ServerInstanceId};
 
 pub trait Location {
     fn set_location_id(&mut self, location_id: LocationId);

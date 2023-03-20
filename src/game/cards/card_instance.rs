@@ -10,7 +10,7 @@ use walkdir::WalkDir;
 use crate::game::board::Board;
 
 use crate::game::cards::card_deserialization::{Card, CardBehavior};
-use crate::game::game_state::{CardInstanceId, LocationId, PlayerId, ServerInstanceId};
+use crate::game::id_types::{CardInstanceId, LocationId, PlayerId, ServerInstanceId};
 use crate::game::state_resources::StateResources;
 
 #[derive(Clone)]

@@ -1,4 +1,4 @@
-﻿type = "unit"
+﻿category = "unit"
 name = "Water Golem"
 description = "<i>A golem made entirely of water.</i>"
 cost = 1
@@ -7,12 +7,12 @@ attack = 7
 health = 7
 defense = 3
 
-[[behaviour]]
+[[behavior]]
 description = "When this Unit is on a Cold Landscape, replace it with an 'Ice Golem'."
-    [[behaviour.trigger]]
-    type = "this-enter_landscape"
-    match = {landscape_type-contains = ["Cold"] }
+    [[behavior.trigger]]
+    when = "this:has_entered_landscape"
+    and = { "landscape_type:contains" = ["Cold"] }
 
-    [[behaviour.action]]
-    type = "replace_this"
-    inputs = { with = "ice_golem" }
+    [[behavior.action]]
+    then = "replace"
+    with = { target = "this", replacement = "ice_golem" }

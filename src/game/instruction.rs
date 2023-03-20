@@ -2,11 +2,12 @@ use crate::game::game_communicator::GameCommunicator;
 use crate::game::tag::Tag;
 use async_recursion::async_recursion;
 
-use crate::game::game_state::{CardInstanceId, GameState, LocationId, PlayerId, ServerInstanceId};
+use crate::game::game_state::GameState;
 use color_eyre::Result;
 use crate::game::cards::card_instance::CardInstance;
 
 use crate::game::highlight_type::HighlightType;
+use crate::game::id_types::{CardInstanceId, LocationId, PlayerId, ServerInstanceId};
 
 pub enum InstructionPostProcess {
     Ok,
@@ -61,7 +62,7 @@ impl InstructionToClient {
                 "add_slot|{}{}{}",
                 Tag::Player(player_id).build()?,
                 Tag::U64(index).build()?,
-                Tag::ServerInstanceId(location_id).build()?,
+                Tag::LocationId(location_id).build()?,
             ),
             InstructionToClient::SetThaum {
                 player_id,
@@ -75,8 +76,8 @@ impl InstructionToClient {
                 card, to
             } => format!(
                 "move_card|{}{}",
-                Tag::ServerInstanceId(card).build()?,
-                Tag::ServerInstanceId(to).build()?
+                Tag::CardInstanceId(card).build()?,
+                Tag::LocationId(to).build()?
             ),
             InstructionToClient::CreateCard {
                 card_data,
@@ -87,9 +88,9 @@ impl InstructionToClient {
                 format!(
                     "create_card|{}{}{}{}",
                     Tag::CardData(card_data).build()?,
-                    Tag::ServerInstanceId(instance_id).build()?,
+                    Tag::CardInstanceId(instance_id).build()?,
                     Tag::Player(player_id).build()?,
-                    Tag::ServerInstanceId(location_id).build()?,
+                    Tag::LocationId(location_id).build()?,
                 )
             }
             InstructionToClient::PassTurn {
@@ -102,7 +103,7 @@ impl InstructionToClient {
                 location
             } => format!(
                 "clear_location|{}",
-                Tag::ServerInstanceId(location).build()?
+                Tag::LocationId(location).build()?
             ),
             _ => todo!("instruction not implemented"),
         })
