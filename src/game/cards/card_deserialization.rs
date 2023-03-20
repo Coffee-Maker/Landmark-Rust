@@ -78,7 +78,7 @@ pub enum CardBehaviorTriggerWhenActivator {
     Either
 }
 
-#[derive(Debug, Deserialize_enum_str, Clone)]
+#[derive(Debug, Deserialize_enum_str, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum CardBehaviorTriggerWhenName {
     WillBeSummoned,
@@ -158,9 +158,6 @@ pub enum CardBehaviorActionCardTarget {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case", tag = "then", content = "with")]
 pub enum CardBehaviorAction {
-    RetireSelectedUnits {
-        amount: u64
-    },
     DrawCard {
         target: CardBehaviorActionPlayerTarget,
     },

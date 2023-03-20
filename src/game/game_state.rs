@@ -21,7 +21,7 @@ use crate::game::instruction::InstructionToClient;
 use crate::game::player::Player;
 use crate::game::state_resources::StateResources;
 use crate::game::tag::get_tag;
-use crate::game::trigger_context::TriggerContext;
+use crate::game::trigger_context::CardBehaviorTriggerContext;
 
 pub async fn game_service(websocket: WebSocketStream<TcpStream>) -> Result<()> {
     println!("Starting game service");

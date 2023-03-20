@@ -1,35 +1,17 @@
 ﻿use std::collections::HashMap;
 use crate::game::board::Board;
+use crate::game::cards::card_deserialization::Card;
 use crate::game::id_types::CardInstanceId;
 use crate::game::state_resources::StateResources;
 
-pub struct TriggerContext {
+pub struct CardBehaviorTriggerContext {
     values: HashMap<String, ContextValue>,
 }
 
-impl TriggerContext {
+impl CardBehaviorTriggerContext {
     pub fn new() -> Self {
         Self {
             values: HashMap::new(),
-        }
-    }
-    
-    pub fn add_card(&mut self, board: &Board, resources: &StateResources, card_key: CardInstanceId) {
-        let card_instance = resources.card_instances.get(&card_key).unwrap();
-        self.values.insert("id".into(), ContextValue::String(card_instance.card.id.clone()));
-        self.values.insert("type".into(), ContextValue::Array(card_instance.card_types.iter().map(|s| ContextValue::String(s.clone())).collect()));
-        self.values.insert("thaum".into(), ContextValue::I64(card_instance.cost as i64));
-        self.values.insert("name".into(), ContextValue::String(card_instance.card.name.clone()));
-        self.values.insert("description".into(), ContextValue::String(card_instance.card.description.clone()));
-
-        match board.get_relevant_landscape(resources, card_instance.instance_id) {
-            Some(lid) => {
-                let landscape = resources.locations.get(&lid).unwrap();
-                let landscape_card = landscape.get_card().unwrap();
-                let landscape_types = &resources.card_instances.get(&landscape_card).unwrap().card_types;
-                self.insert("landscape_type", ContextValue::Array(landscape_types.iter().map(|c| ContextValue::String(c.to_string())).collect()));
-            }
-            None => {}
         }
     }
     
@@ -52,6 +34,8 @@ pub enum ContextValue {
     I64(i64),
     F64(f64),
     Bool(bool),
+    CardInstance(CardInstanceId),
+    Card(Card),
     Array(Vec<ContextValue>),
 }
 
@@ -94,6 +78,20 @@ impl ContextValue {
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             ContextValue::F64(f) => Some(*f),
+            _ => None,
+        }
+    }
+
+    pub fn as_card_instance(&self) -> Option<CardInstanceId> {
+        match self {
+            ContextValue::CardInstance(c) => Some(*c),
+            _ => None,
+        }
+    }
+
+    pub fn as_card(&self) -> Option<&Card> {
+        match self {
+            ContextValue::Card(c) => Some(c),
             _ => None,
         }
     }
