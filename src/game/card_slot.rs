@@ -1,12 +1,12 @@
 use color_eyre::eyre::eyre;
-use crate::game::game_state::{CardKey, ServerInstanceId};
+use crate::game::game_state::{CardInstanceId, ServerInstanceId};
 use crate::game::location::Location;
 
 use color_eyre::Result;
 
 pub struct CardSlot {
     pub lid: ServerInstanceId,
-    pub card: Option<CardKey>,
+    pub card: Option<CardInstanceId>,
 }
 
 impl CardSlot {
@@ -27,13 +27,13 @@ impl Location for CardSlot {
         self.lid
     }
 
-    fn add_card(&mut self, _card: CardKey) -> Result<()> {
+    fn add_card(&mut self, _card: CardInstanceId) -> Result<()> {
         if self.card.is_some() { return Err(eyre!("Attempted to put card in card slot that is already populated")) }
         self.card = Some(_card);
         Ok(())
     }
 
-    fn remove_card(&mut self, _card: CardKey) {
+    fn remove_card(&mut self, _card: CardInstanceId) {
         if self.card.is_some() && self.card.unwrap() == _card {
             self.card = None;
         }        
@@ -43,16 +43,16 @@ impl Location for CardSlot {
         self.card = None;
     }
 
-    fn contains(&self, card: CardKey) -> bool { Some(card) == self.card }
+    fn contains(&self, card: CardInstanceId) -> bool { Some(card) == self.card }
 
-    fn get_card(&self) -> Option<CardKey> {
+    fn get_card(&self) -> Option<CardInstanceId> {
         match self.card {
             None => None,
             Some(c) => Some(c),
         }
     }
 
-    fn get_cards(&self) -> Vec<CardKey> {
+    fn get_cards(&self) -> Vec<CardInstanceId> {
         match self.card {
             None => Vec::new(),
             Some(c) => vec![c],

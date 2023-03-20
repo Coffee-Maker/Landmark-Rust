@@ -1,14 +1,16 @@
-use crate::game::game_state::{PlayerId, ServerInstanceId};
+use crate::game::game_state::{CardInstanceId, LocationId, PlayerId, ServerInstanceId};
 use color_eyre::eyre::ContextCompat;
 use color_eyre::Result;
-use crate::game::cards::card::{CardData, CardCategory};
+use crate::game::cards::card_instance::{CardInstance, CardCategory};
 
 pub enum Tag {
     Player(PlayerId),
     U64(u64),
     String(String),
-    CardData(CardData),
+    CardData(CardInstance),
     ServerInstanceId(ServerInstanceId),
+    CardInstanceId(CardInstanceId),
+    LocationId(LocationId),
 }
 
 impl Tag {
@@ -17,7 +19,6 @@ impl Tag {
             Tag::Player(p) => format!("{}", p as u32),
             Tag::U64(t) => format!("{}", t),
             Tag::String(c) => format!("{}", c),
-            Tag::ServerInstanceId(c) => format!("{}", c),
             Tag::CardData(c) => {
                 let id = c.card_id.clone();
                 let name = c.name.clone();
@@ -41,6 +42,9 @@ impl Tag {
                 };
                 format!("{id};;{card_type};;{name};;{description};;{cost};;{health};;{defense};;{attack};;{types};;")
             }
+            Tag::ServerInstanceId(c) => format!("{}", c),
+            Tag::CardInstanceId(c) => format!("{}", c),
+            Tag::LocationId(c) => format!("{}", c),
         })))
     }
 }

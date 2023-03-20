@@ -2,9 +2,9 @@ use crate::game::game_communicator::GameCommunicator;
 use crate::game::tag::Tag;
 use async_recursion::async_recursion;
 
-use crate::game::game_state::{GameState, PlayerId, ServerInstanceId};
+use crate::game::game_state::{CardInstanceId, GameState, LocationId, PlayerId, ServerInstanceId};
 use color_eyre::Result;
-use crate::game::cards::card::CardData;
+use crate::game::cards::card_instance::CardInstance;
 
 use crate::game::highlight_type::HighlightType;
 
@@ -28,25 +28,25 @@ pub enum InstructionToClient {
     AddLandscapeSlot {
         player_id: PlayerId,
         index: u64,
-        location_id: ServerInstanceId,
+        location_id: LocationId,
     },
     SetThaum {
         player_id: PlayerId,
         amount: u32,
     },
     MoveCard {
-        card: ServerInstanceId,
-        to: ServerInstanceId,
+        card: CardInstanceId,
+        to: LocationId,
     },
     DrawCard { player: PlayerId },
     CreateCard {
-        card_data: CardData,
-        instance_id: ServerInstanceId,
-        location_id: ServerInstanceId,
+        card_data: CardInstance,
+        instance_id: CardInstanceId,
+        location_id: LocationId,
         player_id: PlayerId,
     },
     PassTurn { player_id: PlayerId },
-    ClearLocation { location: ServerInstanceId },
+    ClearLocation { location: LocationId },
     Destroy { card: ServerInstanceId },
     HighlightCard { card: ServerInstanceId, highlight_type: HighlightType }
 }
@@ -56,12 +56,12 @@ impl InstructionToClient {
     pub async fn build(self) -> Result<String> {
         Ok(match self {
             InstructionToClient::AddLandscapeSlot {
-                player_id, index, location_id: lid
+                player_id, index, location_id
             } => format!(
                 "add_slot|{}{}{}",
                 Tag::Player(player_id).build()?,
                 Tag::U64(index).build()?,
-                Tag::ServerInstanceId(lid).build()?,
+                Tag::ServerInstanceId(location_id).build()?,
             ),
             InstructionToClient::SetThaum {
                 player_id,

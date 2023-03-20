@@ -2,9 +2,9 @@ use color_eyre::eyre::{ContextCompat, eyre};
 use color_eyre::Result;
 use crate::game::board::Board;
 
-use crate::game::cards::card::CardCategory;
+use crate::game::cards::card_instance::CardCategory;
 use crate::game::game_communicator::GameCommunicator;
-use crate::game::game_state::{LocationKey, PlayerId};
+use crate::game::game_state::{LocationId, PlayerId};
 use crate::game::instruction::InstructionToClient;
 use crate::game::state_resources::StateResources;
 
@@ -12,12 +12,12 @@ use crate::game::state_resources::StateResources;
 pub struct Player {
     pub thaum: u32,
     pub id: PlayerId,
-    pub deck: LocationKey,
-    pub hand: LocationKey,
+    pub deck: LocationId,
+    pub hand: LocationId,
 }
 
 impl Player {
-    pub fn new(id: PlayerId, deck: LocationKey, hand: LocationKey) -> Self {
+    pub fn new(id: PlayerId, deck: LocationId, hand: LocationId) -> Self {
         Self {
             id,
             thaum: 0,

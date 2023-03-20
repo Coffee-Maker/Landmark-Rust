@@ -1,19 +1,13 @@
 ﻿use std::collections::VecDeque;
 use color_eyre::eyre::{ContextCompat, eyre};
 use toml::Table;
-use crate::game::game_state::{CardKey, GameState, PlayerId};
+use crate::game::game_state::{CardInstanceId, GameState, PlayerId};
 
 use color_eyre::Result;
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::trigger_context::{ContextValue, TriggerContext};
 
-#[derive(Clone)]
-pub struct Behavior {
-    triggers: Vec<(TriggerDefinition, Table)>,
-    actions: Vec<(BehaviourAction, Table)>,
-}
-
-impl Behavior {
+impl Card_Behavior {
     pub fn from(table: Table) -> Result<Self> {
         return Ok(Self {
             triggers: vec![],
@@ -47,7 +41,7 @@ impl Behavior {
         })
     }
 
-    pub fn trigger(&self, trigger: BehaviorTrigger, player: PlayerId, context: &TriggerContext, state: &mut GameState, communicator: &mut GameCommunicator, card: CardKey) -> Result<()> {
+    pub fn trigger(&self, trigger: BehaviorTrigger, player: PlayerId, context: &TriggerContext, state: &mut GameState, communicator: &mut GameCommunicator, card: CardInstanceId) -> Result<()> {
         let card_data = state.resources.card_instances.get(&card).ok_or_else(|| eyre!("Card not found during trigger"))?;
 
         for (t, m) in &self.triggers {
@@ -57,7 +51,7 @@ impl Behavior {
                 TriggerTarget::Opponent => card_data.owner != player,
                 TriggerTarget::Either => true,
                 TriggerTarget::This => {
-                    card_data.instance_id == context.get("iid").context("context does not contain iid")?.as_u64().context("iid is not a u64")?
+                    todo!()
                 }
             } == false { continue; }
 
@@ -213,7 +207,7 @@ impl BehaviorTrigger {
     }
 }
 
-pub type BehaviourAction = fn(&mut GameState, &mut GameCommunicator, CardKey, &Table) -> Result<()>;
+pub type BehaviourAction = fn(&mut GameState, &mut GameCommunicator, CardInstanceId, &Table) -> Result<()>;
 
 pub fn get_function(action: &Table) -> Result<(BehaviourAction, Table)> {
     let action_type = action.get("type").context("Action type is undefined")?.as_str().context("Action type is not a string")?;
@@ -231,13 +225,13 @@ pub fn get_function(action: &Table) -> Result<(BehaviourAction, Table)> {
     }, inputs))
 }
 
-pub fn you_draw_card(state: &mut GameState, communicator: &mut GameCommunicator, card: CardKey, _table: &Table) -> Result<()> {
+pub fn you_draw_card(state: &mut GameState, communicator: &mut GameCommunicator, card: CardInstanceId, _table: &Table) -> Result<()> {
     //let card = state.card_instances.get(&card).unwrap();
     //state.get_player(card.owner).draw_card(state, communicator)?;
     Ok(())
 }
 
-pub fn replace_this(state: &mut GameState, communicator: &mut GameCommunicator, card: CardKey, table: &Table) -> Result<()> {
+pub fn replace_this(state: &mut GameState, communicator: &mut GameCommunicator, card: CardInstanceId, table: &Table) -> Result<()> {
     //let with = table.get("with").context("Replace action has no 'with' input")?.as_str().context("Replace action 'with' input is not a string")?;
     //let card_instance = state.card_instances.get(&card).unwrap();
     //let target_location = card_instance.location;
@@ -246,7 +240,7 @@ pub fn replace_this(state: &mut GameState, communicator: &mut GameCommunicator, 
     Ok(())
 }
 
-pub fn replace_group(state: &mut GameState, communicator: &mut GameCommunicator, card: CardKey, table: &Table) -> Result<()> {
+pub fn replace_group(state: &mut GameState, communicator: &mut GameCommunicator, card: CardInstanceId, table: &Table) -> Result<()> {
     // let count = table.get("count").context("Count is undefined")?.as_integer().context("Count is not an integer")? as usize;
     // let id = table.get("id").context("ID is undefined")?.as_str().context("ID is not a string")?;
     // let replace_with = table.get("replace_with").context("Replace with is undefined")?.as_str().context("Replace with is not a string")?;

@@ -1,12 +1,15 @@
 use color_eyre::Result;
 use color_eyre::eyre::{ContextCompat, eyre};
 use crate::game::card_slot::CardSlot;
-use crate::game::cards::card::CardCategory;
+use crate::game::cards::card_instance::CardCategory;
 use crate::game::game_communicator::GameCommunicator;
-use crate::game::game_state::{CardKey, LocationKey, PlayerId};
+use crate::game::game_state::{CardInstanceId, LocationId, PlayerId};
 use crate::game::game_state::PlayerId::{Player1, Player2};
 use crate::game::instruction::InstructionToClient;
 use crate::game::state_resources::StateResources;
+
+use crate::game::game_state;
+use crate::game::game_state::location_ids;
 
 #[derive(Clone)]
 pub struct Board {
@@ -23,11 +26,11 @@ impl Board {
     }
 
     pub async fn prepare_landscapes(&mut self, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<()> {
-        self.side_1.add_landscape_slots(resources, communicator, 100).await?;
-        self.side_2.add_landscape_slots(resources, communicator, 200).await
+        self.side_1.add_landscape_slots(resources, communicator).await?;
+        self.side_2.add_landscape_slots(resources, communicator).await
     }
 
-    pub fn get_cards_in_play(&self, resources: &StateResources) -> Vec<CardKey> {
+    pub fn get_cards_in_play(&self, resources: &StateResources) -> Vec<CardInstanceId> {
         let mut cards = Vec::new();
         cards.append(&mut self.side_1.get_cards_in_play(resources).clone());
         cards.append(&mut self.side_2.get_cards_in_play(resources).clone());
@@ -35,7 +38,7 @@ impl Board {
         cards
     }
     
-    pub fn get_relevant_landscape(&self, resources: &StateResources, card: CardKey) -> Option<LocationKey> {
+    pub fn get_relevant_landscape(&self, resources: &StateResources, card: CardInstanceId) -> Option<LocationId> {
         let card = resources.card_instances.get(&card)?;
 
         return if self.side_1.field.contains(&card.location) {
@@ -64,10 +67,10 @@ impl Board {
 
 #[derive(Clone)]
 pub struct BoardSide {
-    pub hero: LocationKey,
-    pub landscape: LocationKey,
-    pub field: Vec<LocationKey>,
-    pub graveyard: LocationKey,
+    pub hero: LocationId,
+    pub landscape: LocationId,
+    pub field: Vec<LocationId>,
+    pub graveyard: LocationId,
     pub owner: PlayerId,
 }
 
@@ -75,15 +78,15 @@ pub struct BoardSide {
 impl BoardSide {
     pub fn new(owner: PlayerId) -> BoardSide {
         BoardSide {
-            hero: LocationKey::default(),
-            landscape: LocationKey::default(),
+            hero: location_ids::player_hero_location_id(owner),
+            landscape: location_ids::player_landscape_location_id(owner),
             field: Vec::new(),
-            graveyard: LocationKey::default(),
+            graveyard: location_ids::player_graveyard_location_id(owner),
             owner,
         }
     }
     
-    pub fn get_cards_in_play(&self, resources: &StateResources) -> Vec<CardKey> {
+    pub fn get_cards_in_play(&self, resources: &StateResources) -> Vec<CardInstanceId> {
         let mut cards = Vec::new();
         cards.append(&mut resources.locations.get(&self.hero).unwrap().get_cards().clone());
         cards.append(&mut resources.locations.get(&self.landscape).unwrap().get_cards().clone());
@@ -91,10 +94,11 @@ impl BoardSide {
             cards.append(&mut resources.locations.get(loc).unwrap().get_cards().clone());
         }
         cards.append(&mut resources.locations.get(&self.graveyard).unwrap().get_cards().clone());
+
         cards
     }
 
-    pub async fn add_landscape_slots(&mut self, resources: &mut StateResources, communicator: &mut GameCommunicator, location_id_offset: u64) -> Result<()> {
+    pub async fn add_landscape_slots(&mut self, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<()> {
         let location = resources.locations.get(&self.landscape).context("Landscape location does not exist")?;
         let card_instance = resources.card_instances.get(&location.get_card().context("Landscape card was not provided")?).context(format!("Card in landscape slot for {} does not exist", self.owner))?;
         let landscape = card_instance.card_category.clone();
@@ -102,8 +106,10 @@ impl BoardSide {
         match landscape {
             CardCategory::Landscape { slots } => {
                 let mut i = 0 as u64;
+
                 for _slot in slots {
-                    let location_id = location_id_offset + i;
+                    let location_id = location_ids::player_field_location_id(self.owner, i);
+
                     communicator.send_game_instruction(InstructionToClient::AddLandscapeSlot {
                         player_id: self.owner,
                         index: i,

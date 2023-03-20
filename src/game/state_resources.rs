@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use color_eyre::eyre::ContextCompat;
 use crate::game::board::Board;
-use crate::game::cards::card::CardData;
+use crate::game::cards::card_instance::CardInstance;
 use crate::game::game_communicator::GameCommunicator;
-use crate::game::game_state::{CARD_REGISTRY, CardKey, LocationKey, PlayerId, ServerInstanceId};
+use crate::game::game_state::{CARD_REGISTRY, CardInstanceId, LocationId, PlayerId, ServerInstanceId};
 use crate::game::instruction::InstructionToClient;
 
 use color_eyre::Result;
@@ -12,8 +12,8 @@ use crate::game::location::Location;
 type ThreadSafeLocation = dyn Location + Send + Sync;
 
 pub struct StateResources {
-    pub locations: HashMap<LocationKey, Box<ThreadSafeLocation>>,
-    pub card_instances: HashMap<CardKey, CardData>,
+    pub locations: HashMap<LocationId, Box<ThreadSafeLocation>>,
+    pub card_instances: HashMap<CardInstanceId, CardInstance>,
 }
 
 impl StateResources {
@@ -24,7 +24,7 @@ impl StateResources {
         }
     }
 
-    pub fn add_location(&mut self, location_instance_id: ServerInstanceId, mut location: Box<ThreadSafeLocation>) -> LocationKey {
+    pub fn add_location(&mut self, location_instance_id: LocationId, mut location: Box<ThreadSafeLocation>) -> LocationId {
         location.set_location_id(location_instance_id);
         self.locations.insert(location_instance_id, location);
         location_instance_id
@@ -38,12 +38,12 @@ impl StateResources {
         Ok(())
     }
 
-    pub async fn clear_location(&mut self, communicator: &mut GameCommunicator, location: LocationKey) -> Result<()> {
+    pub async fn clear_location(&mut self, communicator: &mut GameCommunicator, location: LocationId) -> Result<()> {
         self.locations.get_mut(&location).context("Tried to clear a non existent location")?.clear();
         communicator.send_game_instruction(InstructionToClient::ClearLocation { location }).await
     }
 
-    pub async fn move_card(&mut self, card: CardKey, to: LocationKey, communicator: &mut GameCommunicator) -> Result<()> {
+    pub async fn move_card(&mut self, card: CardInstanceId, to: LocationId, communicator: &mut GameCommunicator) -> Result<()> {
         let mut card_instance = self.card_instances.get_mut(&card).context("Card instance not found while attempting a move")?;
         let from = card_instance.location;
         let from_instance = self.locations.get_mut(&from).context("Tried to move card from a location that doesn't exist")?;
@@ -78,7 +78,7 @@ impl StateResources {
         Ok(())
     }
 
-    pub async fn create_card(&mut self, id: &str, location: LocationKey, owner: PlayerId, communicator: &mut GameCommunicator) -> Result<()> {
+    pub async fn create_card(&mut self, id: &str, location: LocationId, owner: PlayerId, communicator: &mut GameCommunicator) -> Result<()> {
         let card_key = fastrand::u64(..);
 
         let loc = self.locations
@@ -92,7 +92,7 @@ impl StateResources {
                 return Ok(());
             }
         };
-        card.key = card_key;
+        card.instance_id = card_key;
         card.location = location;
 
         communicator.send_game_instruction(InstructionToClient::CreateCard {
@@ -116,7 +116,7 @@ impl StateResources {
         Ok(())
     }
 
-    pub async fn destroy_card(&mut self, board: &mut Board, card: CardKey, communicator: &mut GameCommunicator) -> Result<()> {
+    pub async fn destroy_card(&mut self, board: &mut Board, card: CardInstanceId, communicator: &mut GameCommunicator) -> Result<()> {
         let card_instance = self.card_instances.get(&card).unwrap();
 
         communicator.send_game_instruction( InstructionToClient::MoveCard {

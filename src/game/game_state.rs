@@ -1,4 +1,6 @@
 use std::fmt::{Display, Formatter};
+use std::num::ParseIntError;
+use std::str::FromStr;
 
 use color_eyre::eyre;
 use color_eyre::eyre::{ContextCompat, eyre};
@@ -11,8 +13,8 @@ use crate::game::board::Board;
 
 use crate::game::card_collection::CardCollection;
 use crate::game::card_slot::CardSlot;
-use crate::game::cards::card::CardRegistry;
 use crate::game::cards::card_behavior::BehaviorTrigger;
+use crate::game::cards::card_registry::CardRegistry;
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::game_state::PlayerId::{Player1, Player2};
 use crate::game::instruction::InstructionToClient;
@@ -64,8 +66,28 @@ pub static CARD_REGISTRY: Lazy<Mutex<CardRegistry>> = Lazy::new(|| {
 });
 
 pub type ServerInstanceId = u64;
-pub type LocationKey = ServerInstanceId;
-pub type CardKey = ServerInstanceId;
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LocationId(ServerInstanceId);
+
+impl FromStr for LocationId {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.parse::<ServerInstanceId>()?))
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CardInstanceId(ServerInstanceId);
+
+impl FromStr for CardInstanceId {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.parse::<ServerInstanceId>()?))
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PlayerId {
@@ -92,12 +114,53 @@ pub struct GameState {
     location_counter: ServerInstanceId,
 }
 
+pub mod location_ids {
+    use crate::game::game_state::{LocationId, PlayerId};
+    use crate::game::game_state::PlayerId::Player1;
+    use crate::game::player::Player;
+
+    pub const PLAYER_1_DECK: LocationId = LocationId(100);
+    pub const PLAYER_1_HAND: LocationId = LocationId(101);
+    pub const PLAYER_1_HERO: LocationId = LocationId(102);
+    pub const PLAYER_1_LANDSCAPE: LocationId = LocationId(103);
+    pub const PLAYER_1_GRAVEYARD: LocationId = LocationId(104);
+    pub const PLAYER_2_DECK: LocationId = LocationId(200);
+    pub const PLAYER_2_HAND: LocationId = LocationId(201);
+    pub const PLAYER_2_HERO: LocationId = LocationId(202);
+    pub const PLAYER_2_LANDSCAPE: LocationId = LocationId(203);
+    pub const PLAYER_2_GRAVEYARD: LocationId = LocationId(204);
+
+    pub fn player_deck_location_id(player: PlayerId, index: u64) -> LocationId {
+        if player == Player1 { PLAYER_1_DECK } else { PLAYER_2_DECK }
+    }
+
+    pub fn player_hand_location_id(player: PlayerId, index: u64) -> LocationId {
+        if player == Player1 { PLAYER_1_HAND } else { PLAYER_2_HAND }
+    }
+
+    pub fn player_hero_location_id(player: PlayerId) -> LocationId {
+        if player == Player1 { PLAYER_1_HERO } else { PLAYER_2_HERO }
+    }
+
+    pub fn player_landscape_location_id(player: PlayerId) -> LocationId {
+        if player == Player1 { PLAYER_1_LANDSCAPE } else { PLAYER_2_LANDSCAPE }
+    }
+
+    pub fn player_graveyard_location_id(player: PlayerId) -> LocationId {
+        if player == Player1 { PLAYER_1_GRAVEYARD } else { PLAYER_2_GRAVEYARD }
+    }
+
+    pub fn player_field_location_id(player: PlayerId, index: u64) -> LocationId {
+        LocationId(if player == Player1 { 1000 } else { 2000 } + index)
+    }
+}
+
 impl GameState {
     pub fn new() -> Self {
         Self {
             current_turn: Player1,
-            player_1: Player::new(Player1, LocationKey::default(), LocationKey::default()),
-            player_2: Player::new(Player2, LocationKey::default(), LocationKey::default()),
+            player_1: Player::new(Player1, location_ids::PLAYER_1_DECK, location_ids::PLAYER_1_HAND),
+            player_2: Player::new(Player2, location_ids::PLAYER_2_DECK, location_ids::PLAYER_2_HAND),
             resources: StateResources::new(),
             board: Board::new(),
             location_counter: 100,
@@ -105,16 +168,16 @@ impl GameState {
     }
 
     pub async fn start_game(mut self: &mut Self, data: &str, communicator: &mut GameCommunicator) -> Result<()> {
-        self.player_1.deck = self.resources.add_location(0, Box::new(CardCollection::new()));
-        self.player_2.deck = self.resources.add_location(1, Box::new(CardCollection::new()));
-        self.player_1.hand = self.resources.add_location(2, Box::new(CardCollection::new()));
-        self.player_2.hand = self.resources.add_location(3, Box::new(CardCollection::new()));
-        self.board.side_1.hero = self.resources.add_location(4, Box::new(CardSlot::new()));
-        self.board.side_2.hero = self.resources.add_location(5, Box::new(CardSlot::new()));
-        self.board.side_1.landscape = self.resources.add_location(6, Box::new(CardSlot::new()));
-        self.board.side_2.landscape = self.resources.add_location(7, Box::new(CardSlot::new()));
-        self.board.side_1.graveyard = self.resources.add_location(8, Box::new(CardCollection::new()));
-        self.board.side_2.graveyard = self.resources.add_location(9, Box::new(CardCollection::new()));
+        self.resources.add_location(location_ids::PLAYER_1_DECK, Box::new(CardCollection::new()));
+        self.resources.add_location(location_ids::PLAYER_1_HAND, Box::new(CardCollection::new()));
+        self.resources.add_location(location_ids::PLAYER_2_DECK, Box::new(CardCollection::new()));
+        self.resources.add_location(location_ids::PLAYER_2_HAND, Box::new(CardCollection::new()));
+        self.board.side_1.hero = self.resources.add_location(location_ids::PLAYER_1_HERO, Box::new(CardSlot::new()));
+        self.board.side_2.hero = self.resources.add_location(location_ids::PLAYER_2_HERO, Box::new(CardSlot::new()));
+        self.board.side_1.landscape = self.resources.add_location(location_ids::PLAYER_1_LANDSCAPE, Box::new(CardSlot::new()));
+        self.board.side_2.landscape = self.resources.add_location(location_ids::PLAYER_2_LANDSCAPE, Box::new(CardSlot::new()));
+        self.board.side_1.graveyard = self.resources.add_location(location_ids::PLAYER_1_GRAVEYARD, Box::new(CardCollection::new()));
+        self.board.side_2.graveyard = self.resources.add_location(location_ids::PLAYER_2_GRAVEYARD, Box::new(CardCollection::new()));
         self.resources.reset_game(communicator).await?;
 
         // Populate decks
@@ -143,12 +206,12 @@ impl GameState {
     }
 
     pub async fn player_moved_card(&mut self, data: &str, communicator: &mut GameCommunicator) -> Result<()> {
-        let card_key = get_tag("card", data)?.parse::<CardKey>()?;
-        let target_location_key = get_tag("location", data)?.parse::<LocationKey>()?;
+        let card_id = get_tag("card", data)?.parse::<CardInstanceId>()?;
+        let target_location_id = get_tag("location", data)?.parse::<LocationId>()?;
 
-        let card = self.resources.card_instances.get(&card_key).context("Unable to find card")?;
+        let card = self.resources.card_instances.get(&card_id).context("Unable to find card")?;
 
-        if card.location == target_location_key {
+        if card.location == target_location_id {
             return Ok(());
         }
 
@@ -160,17 +223,17 @@ impl GameState {
 
         if card.location != self.get_player(card.owner).hand {
             communicator.send_error("Can't play card from this location").await?;
-            communicator.send_game_instruction( InstructionToClient::MoveCard { card: card_key, to: card.location }).await?;
+            communicator.send_game_instruction( InstructionToClient::MoveCard { card: card_id, to: card.location }).await?;
             return Ok(());
         }
 
-        if self.board.get_side(card.owner).field.contains(&target_location_key) == false {
+        if self.board.get_side(card.owner).field.contains(&target_location_id) == false {
             communicator.send_error("Can't play card to this location").await?;
-            communicator.send_game_instruction( InstructionToClient::MoveCard { card: card_key, to: card.location }).await?;
+            communicator.send_game_instruction( InstructionToClient::MoveCard { card: card_id, to: card.location }).await?;
             return Ok(());
         }
 
-        self.resources.move_card(card_key, target_location_key, communicator).await?;
+        self.resources.move_card(card_id, target_location_id, communicator).await?;
 
         Ok(())
     }

@@ -1,6 +1,6 @@
 ﻿use std::collections::HashMap;
 use crate::game::board::Board;
-use crate::game::game_state::CardKey;
+use crate::game::game_state::CardInstanceId;
 use crate::game::state_resources::StateResources;
 
 pub struct TriggerContext {
@@ -14,16 +14,15 @@ impl TriggerContext {
         }
     }
     
-    pub fn add_card(&mut self, board: &Board, resources: &StateResources, card_key: CardKey) {
+    pub fn add_card(&mut self, board: &Board, resources: &StateResources, card_key: CardInstanceId) {
         let card = resources.card_instances.get(&card_key).unwrap();
-        self.values.insert("iid".into(), ContextValue::U64(card.instance_id));
         self.values.insert("id".into(), ContextValue::String(card.card_id.clone()));
         self.values.insert("type".into(), ContextValue::Array(card.card_types.iter().map(|s| ContextValue::String(s.clone())).collect()));
         self.values.insert("thaum".into(), ContextValue::I64(card.cost as i64));
         self.values.insert("name".into(), ContextValue::String(card.name.clone()));
         self.values.insert("description".into(), ContextValue::String(card.description.clone()));
 
-        match board.get_relevant_landscape(resources, card.key) {
+        match board.get_relevant_landscape(resources, card.instance_id) {
             Some(lid) => {
                 let landscape = resources.locations.get(&lid).unwrap();
                 let landscape_card = landscape.get_card().unwrap();

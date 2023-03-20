@@ -3,26 +3,27 @@ use serde::de::{Error, MapAccess, Unexpected, Visitor};
 use serde::{de, Deserialize, Deserializer};
 use serde::__private::de::EnumDeserializer;
 use serde::de::value::StringDeserializer;
+use serde_enum_str::Deserialize_enum_str;
 
 #[derive(Deserialize, Debug)]
 pub struct Card {
-    name: String,
-    description: String,
-    cost: u64,
-    types: Vec<String>,
+    pub name: String,
+    pub description: String,
+    pub cost: u64,
+    pub types: Vec<String>,
 
     #[serde(flatten)]
-    card_category: CardCategory,
+    pub card_category: CardCategory,
 
     #[serde(rename = "behavior")]
-    behaviors: Vec<CardBehavior>,
+    pub behaviors: Vec<CardBehavior>,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct SlotPosition {
-    x: i32,
-    y: i32,
-    z: i32,
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
 }
 
 #[derive(Deserialize, Debug)]
@@ -41,29 +42,29 @@ pub enum CardCategory {
     Command,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct CardBehavior {
-    description: String,
+    pub description: String,
 
     #[serde(rename = "trigger")]
-    triggers: Vec<CardBehaviorTrigger>,
+    pub triggers: Vec<CardBehaviorTrigger>,
 
     #[serde(rename = "action")]
-    actions: Vec<CardBehaviorAction>,
+    pub actions: Vec<CardBehaviorAction>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct CardBehaviorTrigger {
-    when: CardBehaviorTriggerWhen
+    pub when: CardBehaviorTriggerWhen
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CardBehaviorTriggerWhen {
-    activator: CardBehaviorTriggerWhenActivator,
-    name: CardBehaviorTriggerWhenName,
+    pub activator: CardBehaviorTriggerWhenActivator,
+    pub name: CardBehaviorTriggerWhenName,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug, Deserialize_enum_str, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum CardBehaviorTriggerWhenActivator {
     #[serde(alias = "Owner")]
@@ -74,7 +75,7 @@ pub enum CardBehaviorTriggerWhenActivator {
     Either
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug, Deserialize_enum_str, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum CardBehaviorTriggerWhenName {
     WillBeSummoned,
@@ -101,7 +102,7 @@ impl<'de> Deserialize<'de> for CardBehaviorTriggerWhen {
         struct CardBehaviorTriggerWhenVisitor;
 
         impl<'de> Visitor<'de> for CardBehaviorTriggerWhenVisitor {
-            type Value = (String, String);
+            type Value = CardBehaviorTriggerWhen;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("\"<target>:<trigger>\"")
@@ -112,29 +113,20 @@ impl<'de> Deserialize<'de> for CardBehaviorTriggerWhen {
                     return Err(de::Error::invalid_value(Unexpected::Str(v), &self))
                 };
 
-                // Ok(CardBehaviorTriggerWhen {
-                //     activator: serde::de::toml::from_str::<CardBehaviorTriggerWhenActivator>(activator.into())
-                //         .map_err(|_| de::Error::custom("Trigger activator is not a valid variant."))?,
-                //     name: toml::from_str::<CardBehaviorTriggerWhenName>(name.into())
-                //         .map_err(|_| de::Error::custom("Trigger name is not a valid variant."))?,
-                // })
-
-                Ok((activator.into(), name.into()))
+                Ok(CardBehaviorTriggerWhen {
+                    activator: activator.parse::<CardBehaviorTriggerWhenActivator>()
+                        .map_err(|e| serde::de::Error::custom(e))?,
+                    name: name.parse::<CardBehaviorTriggerWhenName>()
+                        .map_err(|e| serde::de::Error::custom(e))?,
+                })
             }
         }
 
-        let (activator, name) = deserializer.deserialize_string(CardBehaviorTriggerWhenVisitor)?;
-
-        EnumDeserializer::new(activator).deserialize_enum()
-
-        Ok(CardBehaviorTriggerWhen {
-            activator: CardBehaviorTriggerWhenActivator::deserialize(deserializer)?,
-            name: CardBehaviorTriggerWhenName::HasAttacked,
-        })
+        deserializer.deserialize_string(CardBehaviorTriggerWhenVisitor)
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case", tag = "then", content = "with")]
 pub enum CardBehaviorAction {
     RetireSelectedUnits {

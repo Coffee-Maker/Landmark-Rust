@@ -12,6 +12,9 @@ defense = 0
 
     [[behavior.trigger]]
     when = "this:will_be_attacked"
+    when = "this:has_been_summoned"
+    and = { "opponent:health:greater_than_or_equal" = 3 }
+    and = { "$selected:health:greater_than" = 3 }
 
     [[behavior.action]]
     then = "retire_selected_units"
