@@ -1,3 +1,5 @@
+use std::collections::{vec_deque, VecDeque};
+
 use color_eyre::Result;
 use futures_util::{SinkExt, StreamExt};
 use owo_colors::{OwoColorize, Rgb, Style};
@@ -5,6 +7,7 @@ use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::WebSocketStream;
 
+use crate::game::cards::card_deserialization::{CardBehavior, CardBehaviorTriggerWhenName};
 use crate::game::instruction::InstructionToClient;
 
 pub struct GameCommunicator {

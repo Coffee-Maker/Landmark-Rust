@@ -59,7 +59,7 @@ impl Player {
             1 => {
                 let hero = *heroes.first().unwrap(); // We already checked that there is one item in the vector
                 let hero_location = board.get_side(self.id).hero;
-                resources.move_card(hero, hero_location, communicator).await?;
+                resources.move_card(hero, hero_location, self.id, communicator).await?;
             }
             0 => return Err(eyre!("No hero found in deck")),
             _ => return Err(eyre!("Found more than one hero in deck")),
@@ -79,7 +79,7 @@ impl Player {
             1 => {
                 let landscape = *landscapes.first().unwrap(); // We already checked that there is one item in the vector
                 let landscape_location = board.get_side(self.id).landscape;
-                resources.move_card(landscape, landscape_location, communicator).await?;
+                resources.move_card(landscape, landscape_location, self.id, communicator).await?;
             }
             0 => return Err(eyre!("No hero found in deck")),
             _ => return Err(eyre!("Found more than one hero in deck")),
@@ -96,7 +96,7 @@ impl Player {
                 todo!("lose instantly")
             }
             Some(card_key) => {
-                resources.move_card(card_key, self.hand, communicator).await?;
+                resources.move_card(card_key, self.hand, self.id, communicator).await?;
                 // Todo: Reimplement this
                 //let mut context = TriggerContext::new();
                 //context.add_card(state, card_key);

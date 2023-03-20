@@ -1,17 +1,21 @@
 ﻿use std::collections::HashMap;
+
 use crate::game::board::Board;
 use crate::game::cards::card_deserialization::Card;
-use crate::game::id_types::CardInstanceId;
+use crate::game::id_types::{CardInstanceId, PlayerId};
+use crate::game::player::Player;
 use crate::game::state_resources::StateResources;
 
 pub struct CardBehaviorTriggerContext {
+    pub owner: PlayerId,
     values: HashMap<String, ContextValue>,
 }
 
 impl CardBehaviorTriggerContext {
-    pub fn new() -> Self {
+    pub fn new(owner: PlayerId) -> Self {
         Self {
             values: HashMap::new(),
+            owner,
         }
     }
     

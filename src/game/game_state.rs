@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fmt::{Display, Formatter};
 use std::num::ParseIntError;
 use std::str::FromStr;
@@ -13,9 +14,11 @@ use tokio_tungstenite::WebSocketStream;
 use crate::game::board::Board;
 use crate::game::card_collection::CardCollection;
 use crate::game::card_slot::CardSlot;
+use crate::game::cards::card_behaviors;
+use crate::game::cards::card_deserialization::CardBehaviorTriggerWhenName;
 use crate::game::cards::card_registry::CardRegistry;
 use crate::game::game_communicator::GameCommunicator;
-use crate::game::id_types::{CardInstanceId, LocationId, PlayerId, ServerInstanceId};
+use crate::game::id_types::{CardInstanceId, location_ids, LocationId, PlayerId, ServerInstanceId};
 use crate::game::id_types::PlayerId::{Player1, Player2};
 use crate::game::instruction::InstructionToClient;
 use crate::game::player::Player;
@@ -41,19 +44,35 @@ pub async fn game_service(websocket: WebSocketStream<TcpStream>) -> Result<()> {
             continue;
         };
 
+        let mut queue = CardBehaviorTriggerQueue::new();
+
         let result = match instruction {
             "start_game" => game_state.start_game(data, &mut communicator).await,
-            "move_card" => game_state.player_moved_card(data, &mut communicator).await,
+            "move_card" => {
+                game_state.player_moved_card(data, &mut communicator).await?.map_or(Err(eyre!("")), |mut trigger_queue| {
+                    Ok(queue.append(&mut trigger_queue))
+                })
+            },
             "pass_turn" => game_state.player_pass_turn(data, &mut communicator).await,
             _ => Err(eyre!("Unknown instruction: {}", instruction)),
         };
 
-        // if result.is_ok() {
-        //     result = communicator.process_instructions(self).await;
-        // }
-
         match result {
-            Ok(_) => { }
+            Ok(_) => {
+                while let Some((trigger_when, trigger_context)) = queue.pop_front() {
+                    for (card_instance_id, _) in game_state.resources.card_instances.clone() {
+                        let mut trigger_queue = card_behaviors::trigger_card_behaviors(
+                            card_instance_id,
+                            trigger_context.owner.clone(),
+                            trigger_when.clone(),
+                            &trigger_context,
+                            &mut game_state,
+                            &mut communicator
+                        )?;
+                        queue.append(&mut trigger_queue);
+                    }
+                }
+            }
             Err(e) => {
                 communicator.send_error(&e.to_string()).await?;
             }
@@ -65,55 +84,17 @@ pub static CARD_REGISTRY: Lazy<Mutex<CardRegistry>> = Lazy::new(|| {
     Mutex::new(CardRegistry::from_directory("data/cards").unwrap())
 });
 
+pub type CardBehaviorTriggerWithContext = (CardBehaviorTriggerWhenName, CardBehaviorTriggerContext);
+pub type CardBehaviorTriggerQueue = VecDeque<CardBehaviorTriggerWithContext>;
+
+
 pub struct GameState {
     pub current_turn: PlayerId,
     player_1: Player,
     player_2: Player,
-    pub resources: StateResources,
     pub board: Board,
-
+    pub resources: StateResources,
     location_counter: ServerInstanceId,
-}
-
-pub mod location_ids {
-    use crate::game::id_types::PlayerId::Player1;
-    use crate::game::id_types::{LocationId, PlayerId};
-    use crate::game::player::Player;
-
-    pub const PLAYER_1_DECK: LocationId = LocationId(100);
-    pub const PLAYER_1_HAND: LocationId = LocationId(101);
-    pub const PLAYER_1_HERO: LocationId = LocationId(102);
-    pub const PLAYER_1_LANDSCAPE: LocationId = LocationId(103);
-    pub const PLAYER_1_GRAVEYARD: LocationId = LocationId(104);
-    pub const PLAYER_2_DECK: LocationId = LocationId(200);
-    pub const PLAYER_2_HAND: LocationId = LocationId(201);
-    pub const PLAYER_2_HERO: LocationId = LocationId(202);
-    pub const PLAYER_2_LANDSCAPE: LocationId = LocationId(203);
-    pub const PLAYER_2_GRAVEYARD: LocationId = LocationId(204);
-
-    pub fn player_deck_location_id(player: PlayerId, index: u64) -> LocationId {
-        if player == Player1 { PLAYER_1_DECK } else { PLAYER_2_DECK }
-    }
-
-    pub fn player_hand_location_id(player: PlayerId, index: u64) -> LocationId {
-        if player == Player1 { PLAYER_1_HAND } else { PLAYER_2_HAND }
-    }
-
-    pub fn player_hero_location_id(player: PlayerId) -> LocationId {
-        if player == Player1 { PLAYER_1_HERO } else { PLAYER_2_HERO }
-    }
-
-    pub fn player_landscape_location_id(player: PlayerId) -> LocationId {
-        if player == Player1 { PLAYER_1_LANDSCAPE } else { PLAYER_2_LANDSCAPE }
-    }
-
-    pub fn player_graveyard_location_id(player: PlayerId) -> LocationId {
-        if player == Player1 { PLAYER_1_GRAVEYARD } else { PLAYER_2_GRAVEYARD }
-    }
-
-    pub fn player_field_location_id(player: PlayerId, index: u64) -> LocationId {
-        LocationId(if player == Player1 { 1000 } else { 2000 } + index)
-    }
 }
 
 impl GameState {
@@ -166,37 +147,35 @@ impl GameState {
         Ok(())
     }
 
-    pub async fn player_moved_card(&mut self, data: &str, communicator: &mut GameCommunicator) -> Result<()> {
+    pub async fn player_moved_card(&mut self, data: &str, communicator: &mut GameCommunicator) -> Result<Option<CardBehaviorTriggerQueue>> {
         let card_id = get_tag("card", data)?.parse::<CardInstanceId>()?;
         let target_location_id = get_tag("location", data)?.parse::<LocationId>()?;
 
         let card = self.resources.card_instances.get(&card_id).context("Unable to find card")?;
 
         if card.location == target_location_id {
-            return Ok(());
+            return Ok(None);
         }
 
         if card.owner != self.current_turn {
             communicator.send_error("Can't play card out of turn").await?;
             communicator.send_game_instruction( InstructionToClient::MoveCard { card: card.instance_id, to: card.location }).await?;
-            return Ok(());
+            return Ok(None);
         }
 
         if card.location != self.get_player(card.owner).hand {
             communicator.send_error("Can't play card from this location").await?;
             communicator.send_game_instruction( InstructionToClient::MoveCard { card: card_id, to: card.location }).await?;
-            return Ok(());
+            return Ok(None);
         }
 
         if self.board.get_side(card.owner).field.contains(&target_location_id) == false {
             communicator.send_error("Can't play card to this location").await?;
             communicator.send_game_instruction( InstructionToClient::MoveCard { card: card_id, to: card.location }).await?;
-            return Ok(());
+            return Ok(None);
         }
 
-        self.resources.move_card(card_id, target_location_id, communicator).await?;
-
-        Ok(())
+        Ok(Some(self.resources.move_card(card_id, target_location_id, self.current_turn, communicator).await?))
     }
 
     pub async fn player_pass_turn(&mut self, data: &str, communicator: &mut GameCommunicator) -> Result<()> {

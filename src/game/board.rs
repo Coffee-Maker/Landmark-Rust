@@ -8,8 +8,7 @@ use crate::game::instruction::InstructionToClient;
 use crate::game::state_resources::StateResources;
 
 use crate::game::game_state;
-use crate::game::game_state::location_ids;
-use crate::game::id_types::{CardInstanceId, LocationId, PlayerId};
+use crate::game::id_types::{CardInstanceId, location_ids, LocationId, PlayerId};
 
 #[derive(Clone)]
 pub struct Board {

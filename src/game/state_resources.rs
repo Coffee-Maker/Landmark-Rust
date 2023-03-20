@@ -1,14 +1,17 @@
 use std::collections::HashMap;
+
 use color_eyre::eyre::ContextCompat;
+use color_eyre::Result;
+
 use crate::game::board::Board;
+use crate::game::cards::card_deserialization::{CardBehavior, CardBehaviorAction, CardBehaviorTriggerWhenName};
 use crate::game::cards::card_instance::CardInstance;
 use crate::game::game_communicator::GameCommunicator;
-use crate::game::game_state::CARD_REGISTRY;
+use crate::game::game_state::{CARD_REGISTRY, CardBehaviorTriggerQueue};
+use crate::game::id_types::{CardInstanceId, location_ids, LocationId, PlayerId, ServerInstanceId};
 use crate::game::instruction::InstructionToClient;
-
-use color_eyre::Result;
-use crate::game::id_types::{CardInstanceId, LocationId, PlayerId, ServerInstanceId};
 use crate::game::location::Location;
+use crate::game::trigger_context::{CardBehaviorTriggerContext, ContextValue};
 
 type ThreadSafeLocation = dyn Location + Send + Sync;
 
@@ -42,11 +45,11 @@ impl StateResources {
         communicator.send_game_instruction(InstructionToClient::ClearLocation { location }).await
     }
 
-    pub async fn move_card(&mut self, card: CardInstanceId, to: LocationId, communicator: &mut GameCommunicator) -> Result<()> {
-        let mut card_instance = self.card_instances.get_mut(&card).context("Card instance not found while attempting a move")?;
+    pub async fn move_card(&mut self, card_instance_id: CardInstanceId, to: LocationId, move_owner: PlayerId, communicator: &mut GameCommunicator) -> Result<CardBehaviorTriggerQueue> {
+        let mut card_instance = self.card_instances.get_mut(&card_instance_id).context("Card instance not found while attempting a move")?;
         let from = card_instance.location;
         let from_instance = self.locations.get_mut(&from).context("Tried to move card from a location that doesn't exist")?;
-        from_instance.remove_card(card);
+        from_instance.remove_card(card_instance_id);
         card_instance.location = to.clone();
         //let owner = card_instance.owner.clone();
 
@@ -54,27 +57,32 @@ impl StateResources {
             .locations
             .get_mut(&to)
             .context("Tried to move a card to a location that doesn't exist")?;
-        to_instance.add_card(card)?;
+        to_instance.add_card(card_instance_id)?;
         let to_id = to_instance.get_location_id();
 
         communicator.send_game_instruction(InstructionToClient::MoveCard {
-            card: self.card_instances.get(&card).context("Card to be moved not found")?.instance_id,
+            card: card_instance_id,
             to: to_id
         }).await?;
 
-        // let from_side_1 = self.board.side_1.field.contains(&from);
-        // let from_side_2 = self.board.side_2.field.contains(&from);
-        // let to_side_1 = self.board.side_1.field.contains(&to);
-        // let to_side_2 = self.board.side_2.field.contains(&to);
+        let mut card_behavior_trigger_contexts = CardBehaviorTriggerQueue::new();
+
+        let from_location_identity = location_ids::identify_location(from)?;
+        let to_location_identity = location_ids::identify_location(to)?;
+
+        let from_field_1 = from_location_identity == location_ids::LocationIdentity::Player1Field;
+        let from_field_2 = from_location_identity == location_ids::LocationIdentity::Player2Field;
+        let to_field_1 = to_location_identity == location_ids::LocationIdentity::Player1Field;
+        let to_field_2 = to_location_identity == location_ids::LocationIdentity::Player2Field;
 
         // Todo: Reimplement this
-        // if (to_side_1 || to_side_2) && (from_side_1 != to_side_1 || from_side_2 != to_side_2) { // It checks if the card just entered a landscape
-        //     let mut context = TriggerContext::new();
-        //     context.add_card(self, card);
-        //     self.trigger_card_events(owner, communicator, BehaviorTrigger::EnterLandscape, &TriggerContext::new())?;
-        // }
+        if (from_field_1 != to_field_1) && (from_field_2 != to_field_2) && ((from_field_1 && to_field_2) || (from_field_2 && to_field_1)) { // It checks if the card just entered a landscape
+            let mut context = CardBehaviorTriggerContext::new(move_owner);
+            context.insert("card_instance", ContextValue::CardInstance(card_instance_id));
+            card_behavior_trigger_contexts.push_back((CardBehaviorTriggerWhenName::HasEnteredLandscape, context));
+        }
 
-        Ok(())
+        Ok(card_behavior_trigger_contexts)
     }
 
     pub async fn create_card(&mut self, id: &str, location: LocationId, owner: PlayerId, communicator: &mut GameCommunicator) -> Result<()> {
