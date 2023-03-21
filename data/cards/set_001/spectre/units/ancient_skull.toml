@@ -11,7 +11,7 @@ types = ["husk", "specter"]
 
     [[behavior.trigger]]
     when = "this:will_equip"
-    and = { check = "id_equals", with = { id = "phantom" } }
+    #and = { check = "id_equals", with = { id = "phantom" } }
 
     [[behavior.action]]
     then = "replace"

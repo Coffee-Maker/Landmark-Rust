@@ -6,12 +6,13 @@ use crate::game::id_types::{CardInstanceId, PlayerId};
 use crate::game::player::Player;
 use crate::game::state_resources::StateResources;
 
-pub struct CardBehaviorTriggerContext {
+#[derive(Clone)]
+pub struct CardBehaviorContext {
     pub owner: PlayerId,
     values: HashMap<String, ContextValue>,
 }
 
-impl CardBehaviorTriggerContext {
+impl CardBehaviorContext {
     pub fn new(owner: PlayerId) -> Self {
         Self {
             values: HashMap::new(),
@@ -32,6 +33,7 @@ impl CardBehaviorTriggerContext {
     }
 }
 
+#[derive(Clone)]
 pub enum ContextValue {
     String(String),
     U64(u64),
@@ -39,7 +41,6 @@ pub enum ContextValue {
     F64(f64),
     Bool(bool),
     CardInstance(CardInstanceId),
-    Card(Card),
     Array(Vec<ContextValue>),
 }
 
@@ -89,13 +90,6 @@ impl ContextValue {
     pub fn as_card_instance(&self) -> Option<CardInstanceId> {
         match self {
             ContextValue::CardInstance(c) => Some(*c),
-            _ => None,
-        }
-    }
-
-    pub fn as_card(&self) -> Option<&Card> {
-        match self {
-            ContextValue::Card(c) => Some(c),
             _ => None,
         }
     }

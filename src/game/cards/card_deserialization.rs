@@ -1,9 +1,19 @@
 use std::fmt;
-use serde::de::{Error, MapAccess, Unexpected, Visitor};
+use color_eyre::eyre::ContextCompat;
+
+use color_eyre::Result;
 use serde::{de, Deserialize, Deserializer};
 use serde::__private::de::EnumDeserializer;
+use serde::de::{Error, MapAccess, Unexpected, Visitor};
 use serde::de::value::StringDeserializer;
 use serde_enum_str::Deserialize_enum_str;
+
+use crate::game::cards::card_behaviors::CardBehaviorResult;
+use crate::game::game_communicator::GameCommunicator;
+use crate::game::game_state::{CardBehaviorTriggerQueue, CardBehaviorTriggerWithContext, GameState};
+use crate::game::id_types::{CardInstanceId, PlayerId};
+use crate::game::id_types::PlayerId::{Player1, Player2};
+use crate::game::trigger_context::CardBehaviorContext;
 
 #[derive(Deserialize, Debug)]
 pub struct Card {
@@ -56,7 +66,8 @@ pub struct CardBehavior {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct CardBehaviorTrigger {
-    pub when: CardBehaviorTriggerWhen
+    pub when: CardBehaviorTriggerWhen,
+    pub and: Option<CardBehaviorTriggerAnd>
 }
 
 #[derive(Debug, Clone)]
@@ -82,12 +93,16 @@ pub enum CardBehaviorTriggerWhenName {
     // Generic
     TurnStarted,
     TurnEnded,
+
+    // Card
     WillDrawCard,
     HasBeenDrawn,
     WillDestroy,
     WillBeDestroyed,
     HasDestroyed,
     HasBeenDestroyed,
+    WillBeMoved,
+    HasBeenMoved,
 
     // Units
     WillBeSummoned,
@@ -99,6 +114,8 @@ pub enum CardBehaviorTriggerWhenName {
     TookDamage,
     HasDefeated,
     HasBeenDefeated,
+    WillLeaveLandscape,
+    HasLeftLandscape,
     WillEnterLandscape,
     HasEnteredLandscape,
     WillEquip,
@@ -143,6 +160,34 @@ impl<'de> Deserialize<'de> for CardBehaviorTriggerWhen {
 }
 
 #[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case", tag = "check", content = "with")]
+pub enum CardBehaviorTriggerAnd {
+    TypeContains {
+        target: CardTarget,
+        types: Vec<String>,
+    }
+}
+
+impl CardBehaviorTriggerAnd {
+    pub async fn check(&self, context: &CardBehaviorContext, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<bool> {
+        Ok(match self {
+            CardBehaviorTriggerAnd::TypeContains { target, types } => {
+                let target = target.evaluate(context)?;
+                let target_instance = state.resources.card_instances.get(&target).context(format!("Card with the id {target} was not a found in state resources"))?;
+                let mut passed = true;
+                for t in types {
+                    if target_instance.card_types.contains(t) == false {
+                        passed = false;
+                        break;
+                    }
+                }
+                passed
+            }
+        })
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum PlayerTarget {
     Owner,
@@ -154,6 +199,22 @@ pub enum PlayerTarget {
 impl Default for PlayerTarget {
     fn default() -> Self {
         Self::Either
+    }
+}
+
+impl PlayerTarget {
+    pub fn get(&self, owner: PlayerId) -> Vec<PlayerId> {
+        match self {
+            PlayerTarget::Owner => vec!(owner),
+            PlayerTarget::Opponent => {
+                match owner {
+                    PlayerId::Player1 => vec!(Player2),
+                    PlayerId::Player2 => vec!(Player1),
+                }
+            }
+            PlayerTarget::Either => vec!(Player1, Player2),
+            PlayerTarget::Random => if fastrand::bool() { vec!(Player1) } else { vec!(Player2) }
+        }
     }
 }
 
@@ -184,6 +245,17 @@ pub enum CardTarget {
     }
 }
 
+impl CardTarget {
+    pub fn evaluate(&self, context: &CardBehaviorContext) -> Result<CardInstanceId> {
+        Ok(match self {
+            CardTarget::This => todo!(),
+            CardTarget::EquipTarget => todo!(),
+            CardTarget::Find { .. } => todo!(),
+            CardTarget::Context { context_key } => context.get(context_key).context(format!("Context does not contain the key {context_key}"))?.as_card_instance().context(format!("Context value with key {context_key} was not a card instance"))?,
+        })
+    }
+}
+
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum LocationTarget {
@@ -197,9 +269,9 @@ pub enum LocationTarget {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct CardFilter {
-    #[serde(default)] owned_by: PlayerTarget,
-    #[serde(default)] adjacent_to: UnitTarget,
-    #[serde(default)] contains_types: Vec<String>,
+    owned_by: Option<PlayerTarget>,
+    adjacent_to: Option<UnitTarget>,
+    contains_types: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -278,5 +350,45 @@ pub enum CardBehaviorAction {
     CreateCard {
         location: LocationTarget,
         id: String,
+    }
+}
+
+impl CardBehaviorAction {
+    pub async fn run(&self, context: &CardBehaviorContext, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<(CardBehaviorTriggerQueue, CardBehaviorResult)> {
+        let queue = CardBehaviorTriggerQueue::new();
+
+        let result = match self {
+            CardBehaviorAction::DrawCard { target } => {
+                for player in target.get(context.owner) {
+                    let player = match player {
+                        PlayerId::Player1 => &mut state.player_1,
+                        PlayerId::Player2 => &mut state.player_2,
+                    };
+                    player.draw_card(&mut state.resources, communicator).await?;
+                }
+                CardBehaviorResult::Ok
+            }
+            CardBehaviorAction::Replace { target, replacement } => todo!(),
+            CardBehaviorAction::AddTypes { target, types } => todo!(),
+            CardBehaviorAction::ModifyAttack { target, amount } => todo!(),
+            CardBehaviorAction::ModifyHealth { target, amount } => todo!(),
+            CardBehaviorAction::ModifyDefense { target, amount } => todo!(),
+            CardBehaviorAction::ModifyCost { target, amount } => todo!(),
+            CardBehaviorAction::Destroy { target } => todo!(),
+            CardBehaviorAction::Summon { target, card } => todo!(),
+
+            CardBehaviorAction::GiveAllTypes { .. } => todo!(),
+            CardBehaviorAction::Cancel => CardBehaviorResult::Cancel,
+            CardBehaviorAction::SelectUnit { .. } => todo!(),
+            CardBehaviorAction::SaveContext { .. } => todo!(),
+            CardBehaviorAction::SumAttack { .. } => todo!(),
+            CardBehaviorAction::AddBehavior { .. } => todo!(),
+            CardBehaviorAction::RemoveBehavior { .. } => todo!(),
+            CardBehaviorAction::SetCounter { .. } => todo!(),
+            CardBehaviorAction::ModifyCounter { .. } => todo!(),
+            CardBehaviorAction::CreateCard { .. } => todo!(),
+        };
+
+        Ok((queue, result))
     }
 }

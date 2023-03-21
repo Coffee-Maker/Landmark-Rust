@@ -2,7 +2,7 @@ category = "landscape"
 name = "Farmland"
 description = "A test landscape."
 cost = 2
-types = ["Muddy", "Cold"]
+types = ["muddy", "cold"]
 slots = [
     { x = 0, y = 0, z = 0 },
     { x = 1, y = 0, z = 0 },
@@ -20,21 +20,9 @@ slots = [
     description = "When you summon an Animal, draw a card."
 
     [[behavior.trigger]]
-    when = "owned:will_be_summoned"
-    and = { "type:contains" = ["Animal"] }
+    when = "owned:has_been_moved"
+    and = { check = "type_contains", with = { target = { context = { context_key = "card_instance" } }, types = ["animal"] } }
 
     [[behavior.action]]
     then = "draw_card"
     with = { target = "owner" }
-
-# New format
-#[[behavior]]
-#    [[behavior.trigger]]
-#    when = "you:summon"
-#    and = [
-#        { "type:is_one_of" = ["Animal"] }
-#    ]
-#
-#[[behavior.action]]
-#    then = "draw_card"
-#    with = { target = "you", amount = 3 }

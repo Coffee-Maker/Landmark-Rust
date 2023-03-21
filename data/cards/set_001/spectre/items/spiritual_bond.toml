@@ -6,7 +6,7 @@ types = ["mystical"]
 [[behavior]]
     [[behavior.trigger]]
     when = "this:will_be_equipped"
-    and = { check = "not:belongs_to", with = { target = "context", owner = "owner" } } # a not gate for all checks?
+    #and = { check = "belongs_to", with = { target = "context", owner = "owner" } } # a not gate for all checks? check = "not:belongs_to"
 
     [[behavior.action]]
     then = "cancel"

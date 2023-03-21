@@ -2,7 +2,14 @@
 name = "Piggie"
 description = "<i>An innocent little piggie.</i>"
 cost = 2
-types = ["Animal"]
+types = ["animal"]
 attack = 1
 health = 2
 defense = 0
+
+[[behavior]]
+    [[behavior.trigger]]
+    when = "this:will_be_moved"
+
+    [[behavior.action]]
+    then = "cancel"

@@ -19,13 +19,13 @@ async fn main() -> Result<()> {
 
     game::cards::card_registry::CardRegistry::from_directory("data/cards")?;
 
-    // println!("Starting TcpListener");
-    //
-    // let server = TcpListener::bind("127.0.0.1:15076").await?;
-    //
-    // while let Ok((stream, _)) = server.accept().await {
-    //     tokio::spawn(accept_connection(stream));
-    // }
+    println!("Starting TcpListener");
+
+    let server = TcpListener::bind("127.0.0.1:15076").await?;
+
+    while let Ok((stream, _)) = server.accept().await {
+        tokio::spawn(accept_connection(stream));
+    }
 
     Ok(())
 }

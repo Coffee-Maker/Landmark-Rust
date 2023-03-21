@@ -11,7 +11,7 @@ defense = 3
 description = "When this Unit is on a Cold Landscape, replace it with an 'Ice Golem'."
     [[behavior.trigger]]
     when = "this:has_entered_landscape"
-    and = { "landscape_type:contains" = ["Cold"] }
+    #and = { check = "landscape_type:contains"  ["Cold"] }
 
     [[behavior.action]]
     then = "replace"

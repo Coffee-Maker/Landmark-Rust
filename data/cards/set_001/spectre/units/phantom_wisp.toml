@@ -25,7 +25,7 @@ health = 2
 [[behavior]]
     [[behavior.trigger]]
     when = "owner:turn_started"
-    and = { check = "counter_equals", with = { target = "this", counter = "spectral_transition", value = 0 } }
+    #and = { check = "counter_equals", with = { target = "this", counter = "spectral_transition", value = 0 } }
 
     [[behavior.action]]
     then = "create_card"

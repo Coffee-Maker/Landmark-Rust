@@ -13,3 +13,7 @@ name = "Husk"
 [[type]]
 id = "military"
 name = "Military"
+
+[[type]]
+id = "animal"
+name = "Animal"
