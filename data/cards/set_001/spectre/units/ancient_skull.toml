@@ -1,4 +1,5 @@
-type = "unit"
+category = "unit"
+name = "Ancient Skull"
 cost = 2
 attack = 0
 health = 1

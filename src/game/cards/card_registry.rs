@@ -19,7 +19,6 @@ impl CardRegistry {
 
         let mut registry: HashMap<String, &'static Card> = HashMap::new();
 
-
         for dir in WalkDir::new(path).into_iter().filter_map(|entry| entry.ok()) {
             if dir.path().is_file() == false {
                 continue;

@@ -63,5 +63,6 @@ fn process_behavior_action(action: &CardBehaviorAction, context: &CardBehaviorTr
         CardBehaviorAction::ModifyCost { target, amount } => todo!(),
         CardBehaviorAction::Destroy { target } => todo!(),
         CardBehaviorAction::Summon { target, card } => todo!(),
+        _ => todo!()
     }
 }

@@ -1,4 +1,5 @@
-type = "unit"
+category = "unit"
+name = "Phantom Egg"
 cost = 0
 health = 1
 types = ["specter"]
@@ -12,14 +13,14 @@ types = ["specter"]
     and = { check = "has_adjacent_units", with = { target = "this", exclude_cards = "phantom_egg" } }
 
     [[behavior.action]]
-    type = "add_behavior"
+    then = "add_behavior"
     with = { target = "this", behavior = "generic.protected" }
 
 [[behavior]]
     [[behavior.trigger]]
-    when = "either:moved"
+    when = "either:turn_started"
     and = { check = "not:has_adjacent_units", with = { target = "this", exclude_cards = "phantom_egg" } }
 
     [[behavior.action]]
-    type = "remove_behavior"
+    then = "remove_behavior"
     with = { target = "this", behavior = "generic.protected" }

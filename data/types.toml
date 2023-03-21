@@ -9,3 +9,7 @@ name = "Phantom"
 [[type]]
 id = "husk"
 name = "Husk"
+
+[[type]]
+id = "military"
+name = "Military"

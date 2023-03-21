@@ -24,7 +24,7 @@ impl Tag {
             Tag::CardData(c) => {
                 let id = c.card.id.clone();
                 let name = c.card.name.clone();
-                let description = c.card.description.clone();
+                let description = c.card.description.clone().unwrap_or("".to_string()); // Todo: Is this the correct method for a default?
                 let cost = c.cost;
                 let mut health = 0;
                 let mut attack = 0;

@@ -68,7 +68,7 @@ pub struct CardBehaviorTriggerWhen {
 #[derive(Debug, Deserialize_enum_str, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum CardBehaviorTriggerWhenActivator {
-    #[serde(alias = "Owner")]
+    #[serde(alias = "owner")]
     Owned,
 
     Opponent,
@@ -79,25 +79,38 @@ pub enum CardBehaviorTriggerWhenActivator {
 #[derive(Debug, Deserialize_enum_str, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum CardBehaviorTriggerWhenName {
+    // Generic
+    TurnStarted,
+    TurnEnded,
+    WillDrawCard,
+    HasBeenDrawn,
+    WillDestroy,
+    WillBeDestroyed,
+    HasDestroyed,
+    HasBeenDestroyed,
+
+    // Units
     WillBeSummoned,
     HasBeenSummoned,
-    WillCast,
-    HasCast,
     WillAttack,
     WillBeAttacked,
     HasAttacked,
     HasBeenAttacked,
     TookDamage,
-    HasDestroyed,
-    HasBeenDestroyed,
     HasDefeated,
     HasBeenDefeated,
-    WillDrawCard,
-    HasBeenDrawn,
-    TurnEnded,
-    TurnStarted,
     WillEnterLandscape,
-    HasEnteredLandscape
+    HasEnteredLandscape,
+    WillEquip,
+    HasEquipped,
+
+    // Items
+    WillBeEquipped,
+    HasBeenEquipped,
+
+    // Commands
+    WillCast,
+    HasCast,
 }
 
 impl<'de> Deserialize<'de> for CardBehaviorTriggerWhen {
@@ -131,63 +144,139 @@ impl<'de> Deserialize<'de> for CardBehaviorTriggerWhen {
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
-pub enum CardBehaviorActionPlayerTarget {
+pub enum PlayerTarget {
     Owner,
     Opponent,
+    Either,
     Random,
 }
 
-#[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "snake_case")]
-pub enum CardBehaviorActionUnitTarget {
-    This,
-    Find, // Todo: Should use the same syntax as the trigger's "and" field
-    FindMany,
+impl Default for PlayerTarget {
+    fn default() -> Self {
+        Self::Either
+    }
 }
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
-pub enum CardBehaviorActionCardTarget {
+pub enum UnitTarget {
     This,
-    Find,
-    FindMany,
+    Find, // Todo: Should use the same syntax as the trigger's "and" field
+    All,
+}
+
+impl Default for UnitTarget {
+    fn default() -> Self {
+        Self::All
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum CardTarget {
+    This,
+    EquipTarget,
+    Find {
+        filter: CardFilter
+    },
+    Context {
+        context_key: String
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum LocationTarget {
+    OwnerHand,
+    OwnerDeck,
+    OwnerGraveyard,
+    OpponentHand,
+    OpponentDeck,
+    OpponentGraveyard
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct CardFilter {
+    #[serde(default)] owned_by: PlayerTarget,
+    #[serde(default)] adjacent_to: UnitTarget,
+    #[serde(default)] contains_types: Vec<String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case", tag = "then", content = "with")]
 pub enum CardBehaviorAction {
     DrawCard {
-        target: CardBehaviorActionPlayerTarget,
+        target: PlayerTarget,
     },
     Replace {
-        target: CardBehaviorActionUnitTarget,
+        target: UnitTarget,
         replacement: String,
     },
     AddTypes {
-        target: CardBehaviorActionUnitTarget,
+        target: UnitTarget,
         types: Vec<String>,
     },
     ModifyAttack {
-        target: CardBehaviorActionUnitTarget,
+        target: UnitTarget,
         amount: i32,
     },
     ModifyHealth {
-        target: CardBehaviorActionUnitTarget,
+        target: UnitTarget,
         amount: i32,
     },
     ModifyDefense {
-        target: CardBehaviorActionUnitTarget,
+        target: UnitTarget,
         amount: i32,
     },
     ModifyCost {
-        target: CardBehaviorActionUnitTarget,
+        target: UnitTarget,
         amount: i32,
     },
     Destroy {
-        target: CardBehaviorActionCardTarget,
+        target: CardTarget,
     },
     Summon {
-        target: CardBehaviorActionUnitTarget,
+        target: UnitTarget,
         card: String,
     },
+
+    // New
+    GiveAllTypes {
+        target: CardTarget
+    },
+    Cancel,
+    SelectUnit {
+        context_key: String,
+        filter: CardFilter,
+    },
+    SaveContext {
+        context_key: String,
+        personal_key: String,
+    },
+    SumAttack {
+        target: UnitTarget,
+        filter: CardFilter,
+    },
+    AddBehavior {
+        target: CardTarget,
+        behavior: String,
+    },
+    RemoveBehavior {
+        target: CardTarget,
+        behavior: String,
+    },
+    SetCounter {
+        target: CardTarget,
+        counter: String,
+        value: i32,
+    },
+    ModifyCounter {
+        target: CardTarget,
+        counter: String,
+        amount: i32,
+    },
+    CreateCard {
+        location: LocationTarget,
+        id: String,
+    }
 }

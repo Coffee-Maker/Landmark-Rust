@@ -17,7 +17,11 @@ types = ["mystical"]
 
     [[behavior.action]]
     then = "select_unit"
-    with = { context_key = "bound_unit", owned_by = "opponent" }
+    with = { context_key = "bound_unit", filter = { owned_by = "opponent" } }
+
+    [[behavior.action]]
+    then = "save_context"
+    with = { target = "this", context_key = "bound_unit", personal_key = "bound_unit" }
 
 [[behavior]]
     [[behavior.trigger]]
@@ -25,4 +29,4 @@ types = ["mystical"]
 
     [[behavior.action]]
     then = "destroy"
-    with = { target = "context.bound_unit" }
+    with = { target = { context = { context_key = "bound_unit" } } }

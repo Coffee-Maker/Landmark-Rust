@@ -6,11 +6,11 @@ health = 2
 
 [[behavior]]
     [[behavior.trigger]]
-    when = "this:was_summoned"
+    when = "this:has_been_summoned"
 
     [[behavior.action]]
     then = "set_counter"
-    with = { target = "this", counter = "spectral_transition", amount = 3 }
+    with = { target = "this", counter = "spectral_transition", value = 3 }
 
 [[behavior]]
     description = "After this {{keyword:unit}} has been deployed for 3 of your turns, replace this {{keyword:unit}} with a {{card:phantom}}."
@@ -29,4 +29,4 @@ health = 2
 
     [[behavior.action]]
     then = "create_card"
-    with = { target = "owner:hand", id = "phantom" }
+    with = { location = "owner_hand", id = "phantom" }

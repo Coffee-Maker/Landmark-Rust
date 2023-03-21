@@ -1,4 +1,4 @@
-type = "unit"
+category = "unit"
 name = "Gatekeeper of the Void"
 cost = 10
 attack = 5
@@ -11,8 +11,8 @@ types = ["specter"]
     when = "either:turn_started"
 
     [[behavior.action]]
-    then = "gather_attack_from_adjacent"
-    with = { target = "this", include_types = ["specter"] }
+    then = "sum_attack"
+    with = { target = "this", filter = { adjacent_to = "this", contains_types = ["specter"] } }
 
 [[behavior]]
     [[behavior.trigger]]

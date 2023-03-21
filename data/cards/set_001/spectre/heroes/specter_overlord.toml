@@ -1,5 +1,5 @@
 category = "hero"
-name = "Spectre Overlord"
+name = "Specter Overlord"
 description = "A test hero."
 cost = 5
-types = ["Spectre"]
+types = ["specter"]
