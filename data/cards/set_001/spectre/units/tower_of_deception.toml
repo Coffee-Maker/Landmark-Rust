@@ -1,0 +1,17 @@
+﻿category = "unit"
+name = "Tower of Deception"
+cost = 12
+types = ["specter", "military"]
+attack = 0
+health = 10
+defense = 6
+
+[[behavior]]
+    [[behavior.trigger]]
+    when = "owned:has_been_summoned"
+    and = { check = "not_this", with = { target = "context" } } # or maybe: context.card
+    and = { check = "adjacent", with = { target = "context", adjacent_to = "this" } } # Not sure what to do for target here
+
+    [[behavior.action]]
+    then = "add_behavior"
+    with = { target = "context", behavior = "generic.hidden" }

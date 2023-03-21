@@ -1,0 +1,12 @@
+category = "item"
+name = "A Wizards Hat"
+cost = 2
+types = ["mystical"]
+
+[[behavior]]
+    [[behavior.trigger]]
+    when = "this:has_been_equipped"
+
+    [[behavior.action]]
+    then = "give_all_types"
+    with = { target = "equip_target" }

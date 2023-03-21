@@ -1,8 +1,25 @@
 type = "unit"
 cost = 0
 health = 1
+types = ["specter"]
+
+[[behavior]]
+    description = "This {{keyword:unit}} is protected as long as it has adjacent {{keyword:unit}}s that are not {{card:phantom_egg}}"
+
+    [[behavior.trigger]]
+    # when = "either:moved" # This could break if another card removes protected from this card. This card would then add protected back after a card is destroyed next to it, which makes no sense.
+    when = "either:turn_started" # I think this should be standard for conditional behaviors
+    and = { check = "has_adjacent_units", with = { target = "this", exclude_cards = "phantom_egg" } }
+
+    [[behavior.action]]
+    type = "add_behavior"
+    with = { target = "this", behavior = "generic.protected" }
 
 [[behavior]]
     [[behavior.trigger]]
     when = "either:moved"
-    and = {  }
+    and = { check = "not:has_adjacent_units", with = { target = "this", exclude_cards = "phantom_egg" } }
+
+    [[behavior.action]]
+    type = "remove_behavior"
+    with = { target = "this", behavior = "generic.protected" }

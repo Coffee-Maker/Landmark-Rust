@@ -1,0 +1,25 @@
+type = "unit"
+name = "Gatekeeper of the Void"
+cost = 10
+attack = 5
+health = 8
+defense = 3
+types = ["specter"]
+
+[[behavior]]
+    [[behavior.trigger]]
+    when = "either:turn_started"
+
+    [[behavior.action]]
+    then = "gather_attack_from_adjacent"
+    with = { target = "this", include_types = ["specter"] }
+
+[[behavior]]
+    [[behavior.trigger]]
+    when = "owned:will_be_summoned" # or: when = "owned:not_this:will_be_summoned"
+    # and = { check = "ownership", with = { ownership = "this" }} # or
+    # or, alternatively, will_be_summoned does not get triggered on the card that has not yet been summoned? Might make more sense.
+    and = { check = "not_this" }
+
+    [[behavior.action]]
+    then = "cancel"

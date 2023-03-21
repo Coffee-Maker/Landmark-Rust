@@ -1,0 +1,28 @@
+category = "item"
+name = "Spiritual Bond"
+cost = 4
+types = ["mystical"]
+
+[[behavior]]
+    [[behavior.trigger]]
+    when = "this:will_be_equipped"
+    and = { check = "not:belongs_to", with = { target = "context", owner = "owner" } } # a not gate for all checks?
+
+    [[behavior.action]]
+    then = "cancel"
+
+[[behavior]]
+    [[behavior.trigger]]
+    when = "this:has_been_equipped"
+
+    [[behavior.action]]
+    then = "select_unit"
+    with = { context_key = "bound_unit", owned_by = "opponent" }
+
+[[behavior]]
+    [[behavior.trigger]]
+    when = "this:will_be_destroyed"
+
+    [[behavior.action]]
+    then = "destroy"
+    with = { target = "context.bound_unit" }
