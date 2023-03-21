@@ -1,0 +1,8 @@
+type = "unit"
+cost = 0
+health = 1
+
+[[behavior]]
+    [[behavior.trigger]]
+    when = "either:moved"
+    and = {  }

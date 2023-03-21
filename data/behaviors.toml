@@ -1,0 +1,38 @@
+[[behavior]]
+    id = "generic.haste"
+    name = "Haste"
+    description = "{{keyword:unit}}s with haste can attack during the turn they were summoned in."
+
+    [[behavior.trigger]]
+    when = "this:was_summoned"
+
+    [[behavior.action]]
+    then = "set_counter"
+    with = { target = "this", counter = "generic.attack_cooldown", amount = 0 }
+
+[[behavior]]
+    id = "generic.hidden"
+    name = "Hidden"
+    description = "If a {{keyword:unit}} on the field is hidden it is not revealed to your opponent until it attacks, defends or is revealed by a card. Hidden {{keyword:unit}}s can be attacked and can have {{keyword:item}}s equipped to them. The equipped {{keyword:item}}s are also not shown to the opponent, but the fact that they are equipped is."
+
+    [[behavior.trigger]]
+    when = "this:will_attack"
+
+    [[behavior.trigger]]
+    when = "this:will_be_attacked"
+
+    [[behavior.action]]
+    then = "remove_behavior"
+    with = { target = "this", id = "generic.hidden" }
+
+[[behavior]]
+    id = "generic.protected"
+    name = "Protected"
+    description = "A {{keyword:unit}} with Protected cannot be targeted for attack."
+
+    [[behavior.trigger]]
+    when = "this:will_be_selected"
+    and = { check = "selection_intention", with = { intention = "attack" } }
+
+    [[behavior.action]]
+    then = "cancel"

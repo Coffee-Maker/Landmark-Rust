@@ -1,0 +1,12 @@
+category = "item"
+name = "Phantom"
+cost = 1
+types = ["specter"]
+
+[[behavior]]
+    [[behavior.trigger]]
+    when = "this:will_be_equipped"
+    and = { check = "type_contains", with = { target = "equip_target", type = "husk" } }
+
+    [[behavior.action]]
+    then = "cancel"

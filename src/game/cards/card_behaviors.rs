@@ -10,7 +10,7 @@ use crate::game::id_types::{CardInstanceId, PlayerId};
 use crate::game::trigger_context::CardBehaviorTriggerContext;
 
 pub fn trigger_card_behaviors(card_instance_id: CardInstanceId, trigger_owner: PlayerId, trigger_name: CardBehaviorTriggerWhenName, context: &CardBehaviorTriggerContext, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<CardBehaviorTriggerQueue> {
-    let card = state.resources.card_instances.get(&card_instance_id).context(format!("Tried to process behaviours for card that does not exist: {}", card_instance_id))?;
+    let card = state.resources.card_instances.get(&card_instance_id).context(format!("Tried to process behaviors for card that does not exist: {}", card_instance_id))?;
 
     let is_owned = card.owner == trigger_owner;
     let is_context_this = context.get("card_instance").map_or(

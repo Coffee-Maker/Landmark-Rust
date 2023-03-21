@@ -1,0 +1,17 @@
+type = "unit"
+cost = 2
+attack = 0
+health = 1
+defense = 4
+types = ["husk", "specter"]
+
+[[behavior]]
+    description = "When a {{card:phantom}} is equipped to this card, replace it with a {{card:phantom_skull}}"
+
+    [[behavior.trigger]]
+    when = "this:will_equip"
+    and = { check = "id_equals", with = { id = "phantom" } }
+
+    [[behavior.action]]
+    then = "replace"
+    with = { target = "this", replacement = "phantom_skull" }

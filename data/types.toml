@@ -1,0 +1,11 @@
+[[type]]
+id = "specter"
+name = "Specter"
+
+[[type]]
+id = "phantom"
+name = "Phantom"
+
+[[type]]
+id = "husk"
+name = "Husk"

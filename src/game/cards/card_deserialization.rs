@@ -7,11 +7,9 @@ use serde_enum_str::Deserialize_enum_str;
 
 #[derive(Deserialize, Debug)]
 pub struct Card {
-    #[serde(skip_deserializing)]
-    pub id: String,
+    #[serde(skip_deserializing)] pub id: String,
     pub name: String,
-    #[serde(default)]
-    pub description: String,
+    pub description: Option<String>,
     pub cost: u64,
     pub types: Vec<String>,
 
@@ -37,9 +35,9 @@ pub enum CardCategory {
         slots: Vec<SlotPosition>
     },
     Unit {
-        attack: u32,
         health: u32,
-        defense: u32,
+        #[serde(default)] attack: u32,
+        #[serde(default)] defense: u32,
     },
     Item,
     Command,
@@ -47,7 +45,7 @@ pub enum CardCategory {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct CardBehavior {
-    pub description: String,
+    pub description: Option<String>,
 
     #[serde(rename = "trigger")]
     pub triggers: Vec<CardBehaviorTrigger>,
