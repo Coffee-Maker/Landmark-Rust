@@ -9,6 +9,6 @@ pub mod location;
 pub mod player;
 pub mod tag;
 pub mod trigger_context;
-pub mod highlight_type;
+pub mod prompts;
 pub mod state_resources;
 pub mod id_types;

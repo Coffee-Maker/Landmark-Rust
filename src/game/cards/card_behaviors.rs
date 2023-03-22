@@ -12,7 +12,7 @@ use crate::game::trigger_context::CardBehaviorContext;
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum CardBehaviorResult {
     Ok,
-    Cancel
+    Cancel,
 }
 
 pub async fn trigger_all_card_behaviors(mut queue: CardBehaviorTriggerQueue, trigger_owner: PlayerId, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<CardBehaviorResult> {

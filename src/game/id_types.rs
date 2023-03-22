@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::num::ParseIntError;
+use crate::game::player::Player;
 
 pub type ServerInstanceId = u64;
 
@@ -12,7 +13,6 @@ pub mod location_ids {
     use color_eyre::Result;
 
     use crate::game::id_types::{LocationId, PlayerId};
-    use crate::game::id_types::PlayerId::Player1;
     use crate::game::player::Player;
 
     pub const PLAYER_1_DECK: LocationId = LocationId(100);
@@ -27,27 +27,27 @@ pub mod location_ids {
     pub const PLAYER_2_GRAVEYARD: LocationId = LocationId(204);
 
     pub fn player_deck_location_id(player: PlayerId, index: u64) -> LocationId {
-        if player == Player1 { PLAYER_1_DECK } else { PLAYER_2_DECK }
+        if player == PlayerId::Player1 { PLAYER_1_DECK } else { PLAYER_2_DECK }
     }
 
     pub fn player_hand_location_id(player: PlayerId, index: u64) -> LocationId {
-        if player == Player1 { PLAYER_1_HAND } else { PLAYER_2_HAND }
+        if player == PlayerId::Player1 { PLAYER_1_HAND } else { PLAYER_2_HAND }
     }
 
     pub fn player_hero_location_id(player: PlayerId) -> LocationId {
-        if player == Player1 { PLAYER_1_HERO } else { PLAYER_2_HERO }
+        if player == PlayerId::Player1 { PLAYER_1_HERO } else { PLAYER_2_HERO }
     }
 
     pub fn player_landscape_location_id(player: PlayerId) -> LocationId {
-        if player == Player1 { PLAYER_1_LANDSCAPE } else { PLAYER_2_LANDSCAPE }
+        if player == PlayerId::Player1 { PLAYER_1_LANDSCAPE } else { PLAYER_2_LANDSCAPE }
     }
 
     pub fn player_graveyard_location_id(player: PlayerId) -> LocationId {
-        if player == Player1 { PLAYER_1_GRAVEYARD } else { PLAYER_2_GRAVEYARD }
+        if player == PlayerId::Player1 { PLAYER_1_GRAVEYARD } else { PLAYER_2_GRAVEYARD }
     }
 
     pub fn player_field_location_id(player: PlayerId, index: u64) -> LocationId {
-        LocationId(if player == Player1 { 1000 } else { 2000 } + index)
+        LocationId(if player == PlayerId::Player1 { 1000 } else { 2000 } + index)
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -64,6 +64,23 @@ pub mod location_ids {
         Player2Landscape,
         Player2Graveyard,
         Player2Field,
+    }
+
+    impl LocationIdentity {
+        pub fn is_field(&self) -> bool {
+            match self {
+                LocationIdentity::Player1Field | LocationIdentity::Player2Field => true,
+                _ => false
+            }
+        }
+
+        pub fn is_field_of(&self, player: PlayerId) -> bool {
+            match player {
+                PlayerId::Player1 => self == &LocationIdentity::Player1Field,
+                PlayerId::Player2 => self == &LocationIdentity::Player2Field,
+                _ => false,
+            }
+        }
     }
 
     pub fn identify_location(location_id: LocationId) -> Result<LocationIdentity> {
@@ -122,17 +139,43 @@ impl Display for CardInstanceId {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct PromptInstanceId(pub ServerInstanceId);
+
+impl FromStr for PromptInstanceId {
+    type Err = ParseIntError;
+
+    fn from_str(s: &str) -> color_eyre::Result<Self, Self::Err> {
+        Ok(Self(s.parse::<ServerInstanceId>()?))
+    }
+}
+
+impl Display for PromptInstanceId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PlayerId {
     Player1 = 0,
     Player2 = 1,
 }
 
+impl PlayerId {
+    pub fn opponent(&self) -> PlayerId {
+        match self {
+            PlayerId::Player1 => PlayerId::Player2,
+            PlayerId::Player2 => PlayerId::Player1
+        }
+    }
+}
+
 impl Display for PlayerId {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            player_1 => write!(f, "Player 1"),
-            player_2 => write!(f, "Player 2"),
+            PlayerId::Player1 => write!(f, "Player 1"),
+            PlayerId::Player2 => write!(f, "Player 2"),
         }
     }
 }

@@ -3,7 +3,8 @@ use color_eyre::Result;
 use crate::game::cards::card_deserialization::CardCategory;
 
 use crate::game::cards::card_instance::CardInstance;
-use crate::game::id_types::{CardInstanceId, LocationId, PlayerId, ServerInstanceId};
+use crate::game::prompts::PromptType;
+use crate::game::id_types::{CardInstanceId, LocationId, PlayerId, PromptInstanceId, ServerInstanceId};
 
 pub enum Tag {
     Player(PlayerId),
@@ -13,6 +14,8 @@ pub enum Tag {
     ServerInstanceId(ServerInstanceId),
     CardInstanceId(CardInstanceId),
     LocationId(LocationId),
+    PromptInstanceId(PromptInstanceId),
+    PromptType(PromptType),
 }
 
 impl Tag {
@@ -26,19 +29,14 @@ impl Tag {
                 let name = c.card.name.clone();
                 let description = c.card.description.clone().unwrap_or("".to_string()); // Todo: Is this the correct method for a default?
                 let cost = c.cost;
-                let mut health = 0;
-                let mut attack = 0;
-                let mut defense = 0;
+                let mut health = c.stats.health;
+                let mut attack = c.stats.attack;
+                let mut defense = c.stats.defense;
                 let types = c.card_types.join(", ");
                 let card_category = match &c.card.card_category {
                     CardCategory::Hero => 0,
-                    CardCategory::Landscape { slots: _slots } => 1,
-                    CardCategory::Unit { attack: a, health: h, defense: d } => {
-                        attack = *a;
-                        health = *h;
-                        defense = *d;
-                        2
-                    }
+                    CardCategory::Landscape { .. } => 1,
+                    CardCategory::Unit { .. } => 2,
                     CardCategory::Item => 3,
                     CardCategory::Command => 4,
                 };
@@ -47,6 +45,8 @@ impl Tag {
             Tag::ServerInstanceId(c) => format!("{}", c),
             Tag::CardInstanceId(c) => format!("{}", c),
             Tag::LocationId(c) => format!("{}", c),
+            Tag::PromptInstanceId(id) => format!("{}", id),
+            Tag::PromptType(t) => format!("{:?}", t),
         })))
     }
 }

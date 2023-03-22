@@ -5,8 +5,8 @@ use color_eyre::eyre::{ContextCompat, eyre};
 use color_eyre::Result;
 use walkdir::WalkDir;
 
-use crate::game::cards::card_deserialization::Card;
-use crate::game::cards::card_instance::CardInstance;
+use crate::game::cards::card_deserialization::{Card, CardCategory};
+use crate::game::cards::card_instance::{CardInstance, UnitStats};
 use crate::game::id_types::{CardInstanceId, LocationId, PlayerId};
 
 pub struct CardRegistry {
@@ -42,6 +42,22 @@ impl CardRegistry {
     pub fn instance_card(&self, id: &str, instance_id: CardInstanceId, location: LocationId, owner: PlayerId) -> Result<CardInstance> {
         let card = self.card_registry.get(id).context(eyre!("Card not found: {}", id))?;
 
+        let mut health = 0;
+        let mut defense = 0;
+        let mut attack = 0;
+
+        match card.card_category {
+            CardCategory::Hero => {}
+            CardCategory::Landscape { .. } => {}
+            CardCategory::Unit { health: h, attack: a, defense: d } => {
+                health = h;
+                attack = a;
+                defense = d;
+            }
+            CardCategory::Item => {}
+            CardCategory::Command => {}
+        }
+
         Ok(CardInstance {
             card,
             owner,
@@ -49,6 +65,7 @@ impl CardRegistry {
             instance_id,
             behaviors: card.behaviors.clone(),
             cost: card.cost,
+            stats: UnitStats { health, defense, attack },
             card_types: card.types.clone(),
         })
     }

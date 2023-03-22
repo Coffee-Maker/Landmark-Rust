@@ -20,8 +20,16 @@ pub struct CardInstance {
     pub location: LocationId,
     pub instance_id: CardInstanceId,
     pub behaviors: Vec<CardBehavior>,
-    pub cost: u64,
+    pub cost: i32,
+    pub stats: UnitStats,
     pub card_types: Vec<String>,
+}
+
+#[derive(Clone, Copy)]
+pub struct UnitStats {
+    pub health: i32,
+    pub defense: i32,
+    pub attack: i32,
 }
 
 impl CardInstance {

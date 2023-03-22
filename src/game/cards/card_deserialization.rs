@@ -20,7 +20,7 @@ pub struct Card {
     #[serde(skip_deserializing)] pub id: String,
     pub name: String,
     pub description: Option<String>,
-    pub cost: u64,
+    pub cost: i32,
     pub types: Vec<String>,
 
     #[serde(flatten)]
@@ -45,9 +45,9 @@ pub enum CardCategory {
         slots: Vec<SlotPosition>
     },
     Unit {
-        health: u32,
-        #[serde(default)] attack: u32,
-        #[serde(default)] defense: u32,
+        health: i32,
+        #[serde(default)] attack: i32,
+        #[serde(default)] defense: i32,
     },
     Item,
     Command,
