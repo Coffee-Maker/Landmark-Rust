@@ -1,4 +1,5 @@
 use std::ops::Not;
+use async_recursion::async_recursion;
 
 use color_eyre::eyre::{ContextCompat, Error};
 use color_eyre::Result;
@@ -15,6 +16,7 @@ pub enum CardBehaviorResult {
     Cancel,
 }
 
+#[async_recursion]
 pub async fn trigger_all_card_behaviors(mut queue: CardBehaviorTriggerQueue, trigger_owner: PlayerId, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<CardBehaviorResult> {
     let mut final_result = CardBehaviorResult::Ok;
 

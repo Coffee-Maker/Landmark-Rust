@@ -9,8 +9,10 @@ use crate::game::id_types::{CardInstanceId, LocationId, PlayerId, PromptInstance
 pub enum Tag {
     Player(PlayerId),
     U64(u64),
+    F32(f32),
     String(String),
     CardData(CardInstance),
+    CardBehaviors(CardInstance),
     ServerInstanceId(ServerInstanceId),
     CardInstanceId(CardInstanceId),
     LocationId(LocationId),
@@ -23,10 +25,11 @@ impl Tag {
         Ok(format!("//{}/!", (match self {
             Tag::Player(p) => format!("{}", p as u32),
             Tag::U64(t) => format!("{}", t),
+            Tag::F32(t) => format!("{}", t),
             Tag::String(c) => format!("{}", c),
             Tag::CardData(c) => {
                 let id = c.card.id.clone();
-                let name = c.card.name.clone();
+                let name = format!("{} ({})", c.card.name.clone(), c.card.cost);
                 let description = c.card.description.clone().unwrap_or("".to_string()); // Todo: Is this the correct method for a default?
                 let cost = c.cost;
                 let mut health = c.stats.health;
@@ -34,14 +37,23 @@ impl Tag {
                 let mut defense = c.stats.defense;
                 let types = c.card_types.join(", ");
                 let card_category = match &c.card.card_category {
-                    CardCategory::Hero => 0,
+                    CardCategory::Hero { .. } => 0,
                     CardCategory::Landscape { .. } => 1,
                     CardCategory::Unit { .. } => 2,
                     CardCategory::Item => 3,
                     CardCategory::Command => 4,
                 };
                 format!("{id};;{card_category};;{name};;{description};;{cost};;{health};;{defense};;{attack};;{types};;")
-            }
+            },
+            Tag::CardBehaviors(c) => {
+                let mut string_to_send = String::new();
+                for behavior in c.behaviors {
+                    if let Some(name) = behavior.name {
+                        string_to_send = format!("{}{};;{};;", string_to_send, name, behavior.description.unwrap_or("".to_string()));
+                    }
+                }
+                string_to_send
+            },
             Tag::ServerInstanceId(c) => format!("{}", c),
             Tag::CardInstanceId(c) => format!("{}", c),
             Tag::LocationId(c) => format!("{}", c),

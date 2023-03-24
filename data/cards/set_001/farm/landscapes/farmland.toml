@@ -9,18 +9,17 @@ slots = [
     { x = 2, y = 0, z = 0 },
     { x = 3, y = 0, z = 0 },
     { x = 4, y = 0, z = 0 },
-    { x = 0, y = 0, z = 1 },
     { x = 1, y = 0, z = 1 },
     { x = 2, y = 0, z = 1 },
     { x = 3, y = 0, z = 1 },
-    { x = 4, y = 0, z = 1 },
 ]
 
 [[behavior]]
+    name = "Husbandry"
     description = "When you summon an Animal, draw a card."
 
     [[behavior.trigger]]
-    when = "owned:has_been_moved"
+    when = "owned:has_been_summoned"
     and = { check = "type_contains", with = { target = { context = { context_key = "card_instance" } }, types = ["animal"] } }
 
     [[behavior.action]]

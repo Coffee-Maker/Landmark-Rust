@@ -12,3 +12,4 @@ pub mod trigger_context;
 pub mod prompts;
 pub mod state_resources;
 pub mod id_types;
+pub mod animation_presets;

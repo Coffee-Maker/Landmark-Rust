@@ -1,7 +1,8 @@
+use std::collections::HashMap;
 use color_eyre::Result;
 use color_eyre::eyre::{ContextCompat, eyre};
 use crate::game::card_slot::CardSlot;
-use crate::game::cards::card_deserialization::CardCategory;
+use crate::game::cards::card_deserialization::{CardCategory, SlotPosition};
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::id_types::PlayerId::{Player1, Player2};
 use crate::game::instruction::InstructionToClient;
@@ -69,6 +70,7 @@ pub struct BoardSide {
     pub hero: LocationId,
     pub landscape: LocationId,
     pub field: Vec<LocationId>,
+    pub field_slot_positions: Vec<SlotPosition>,
     pub graveyard: LocationId,
     pub owner: PlayerId,
 }
@@ -80,6 +82,7 @@ impl BoardSide {
             hero: location_ids::player_hero_location_id(owner),
             landscape: location_ids::player_landscape_location_id(owner),
             field: Vec::new(),
+            field_slot_positions: Vec::new(),
             graveyard: location_ids::player_graveyard_location_id(owner),
             owner,
         }
@@ -106,7 +109,7 @@ impl BoardSide {
             CardCategory::Landscape { slots } => {
                 let mut i = 0 as u64;
 
-                for _slot in slots {
+                for slot in slots {
                     let location_id = location_ids::player_field_location_id(self.owner, i);
 
                     communicator.send_game_instruction(InstructionToClient::AddLandscapeSlot {
@@ -119,6 +122,7 @@ impl BoardSide {
                     let new_loc = CardSlot::new(location_id);
                     resources.insert_location(Box::new(new_loc));
                     self.field.push(location_id);
+                    self.field_slot_positions.push(*slot);
                 }
                 Ok(())
             }

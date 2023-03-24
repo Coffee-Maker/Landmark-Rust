@@ -20,7 +20,7 @@ pub struct CardInstance {
     pub location: LocationId,
     pub instance_id: CardInstanceId,
     pub behaviors: Vec<CardBehavior>,
-    pub cost: i32,
+    pub cost: u32,
     pub stats: UnitStats,
     pub card_types: Vec<String>,
 }

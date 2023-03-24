@@ -5,6 +5,7 @@ health = 1
 types = ["specter"]
 
 [[behavior]]
+    name = "Motherly protection"
     description = "This {{keyword:unit}} is protected as long as it has adjacent {{keyword:unit}}s that are not {{card:phantom_egg}}"
 
     [[behavior.trigger]]

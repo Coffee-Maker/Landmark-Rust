@@ -1,10 +1,11 @@
 use color_eyre::eyre::{ContextCompat, eyre};
 use color_eyre::Result;
+use crate::game::animation_presets::AnimationPreset;
 use crate::game::board::Board;
 use crate::game::cards::card_deserialization::CardCategory;
 
 use crate::game::game_communicator::GameCommunicator;
-use crate::game::id_types::{LocationId, PlayerId};
+use crate::game::id_types::{CardInstanceId, LocationId, PlayerId};
 use crate::game::instruction::InstructionToClient;
 use crate::game::state_resources::StateResources;
 
@@ -14,6 +15,8 @@ pub struct Player {
     pub id: PlayerId,
     pub deck: LocationId,
     pub hand: LocationId,
+    pub hero: CardInstanceId,
+    pub landscape: CardInstanceId,
 }
 
 impl Player {
@@ -23,6 +26,8 @@ impl Player {
             thaum: 0,
             deck,
             hand,
+            hero: CardInstanceId(0),
+            landscape: CardInstanceId(0)
         }
     }
 
@@ -47,7 +52,7 @@ impl Player {
         // Find hero and landscape
         let heroes = resources.locations.get(&self.deck).context("ya nan")?.get_cards().iter()
             .filter_map(|&card_key| {
-                if let Some(card_instance) = resources.card_instances.get(&card_key) && card_instance.card.card_category == CardCategory::Hero {
+                if let Some(card_instance) = resources.card_instances.get(&card_key) && matches!(card_instance.card.card_category, CardCategory::Hero { .. }){
                     Some(card_key)
                 } else {
                     None
@@ -58,8 +63,9 @@ impl Player {
         match heroes.len() {
             1 => {
                 let hero = *heroes.first().unwrap(); // We already checked that there is one item in the vector
+                self.hero = hero;
                 let hero_location = board.get_side(self.id).hero;
-                resources.move_card(hero, hero_location, self.id, communicator).await?;
+                resources.move_card(hero, hero_location, self.id, None, communicator).await?;
             }
             0 => return Err(eyre!("No hero found in deck")),
             _ => return Err(eyre!("Found more than one hero in deck")),
@@ -78,13 +84,16 @@ impl Player {
         match landscapes.len() {
             1 => {
                 let landscape = *landscapes.first().unwrap(); // We already checked that there is one item in the vector
+                self.landscape = landscape;
                 let landscape_location = board.get_side(self.id).landscape;
-                resources.move_card(landscape, landscape_location, self.id, communicator).await?;
+                resources.move_card(landscape, landscape_location, self.id, None, communicator).await?;
             }
             0 => return Err(eyre!("No hero found in deck")),
             _ => return Err(eyre!("Found more than one hero in deck")),
         }
-        
+
+        resources.locations.get_mut(&self.deck).context("Deck was not found")?.shuffle();
+
         Ok(())
     }
 
@@ -96,11 +105,7 @@ impl Player {
                 todo!("lose instantly")
             }
             Some(card_key) => {
-                resources.move_card(card_key, self.hand, self.id, communicator).await?;
-                // Todo: Reimplement this
-                //let mut context = TriggerContext::new();
-                //context.add_card(state, card_key);
-                //state.trigger_card_events(self.id, communicator, BehaviorTrigger::DrawCard, &context)?;
+                resources.move_card(card_key, self.hand, self.id, None, communicator).await?;
             }
         }
 

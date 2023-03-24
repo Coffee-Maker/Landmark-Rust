@@ -1,8 +1,8 @@
 ﻿category = "unit"
-name = "Piggie"
+name = "Clockwork Hog"
 description = "<i>An innocent little piggie.</i>"
-cost = 1
-types = ["creature"]
+cost = 2
+types = ["mechanical", "creature"]
 attack = 1
 health = 2
-defense = 0
+defense = 2

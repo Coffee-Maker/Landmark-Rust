@@ -1,14 +1,16 @@
 ﻿category = "unit"
 name = "Water Golem"
 description = "<i>A golem made entirely of water.</i>"
-cost = 1
-types = ["Water", "Golem"]
+cost = 5
+types = ["water", "golem"]
 attack = 7
 health = 7
 defense = 3
 
 [[behavior]]
-description = "When this Unit is on a Cold Landscape, replace it with an 'Ice Golem'."
+name = "Fortify"
+description = "When this Unit enters a Cold Landscape, replace it with an 'Ice Golem'."
+
     [[behavior.trigger]]
     when = "this:has_entered_landscape"
     #and = { check = "landscape_type:contains"  ["Cold"] }

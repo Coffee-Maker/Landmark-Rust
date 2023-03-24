@@ -5,6 +5,7 @@ use async_recursion::async_recursion;
 use crate::game::cards::card_instance::CardInstance;
 use crate::game::game_state::GameState;
 use color_eyre::Result;
+use crate::game::animation_presets::AnimationPreset;
 
 use crate::game::prompts::PromptType;
 use crate::game::id_types::{CardInstanceId, LocationId, PlayerId, PromptInstanceId, ServerInstanceId};
@@ -66,6 +67,15 @@ pub enum InstructionToClient {
     },
     UpdateData {
         card_data: CardInstance,
+    },
+    UpdateBehaviors {
+        card_data: CardInstance,
+    },
+    Animate {
+        card: CardInstanceId,
+        location: LocationId,
+        duration: f32,
+        preset: AnimationPreset,
     }
 }
 
@@ -137,6 +147,12 @@ impl InstructionToClient {
             }
             InstructionToClient::UpdateData { card_data } => {
                 format!("update_data|{}{}", Tag::CardInstanceId(card_data.instance_id).build()?, Tag::CardData(card_data).build()?)
+            }
+            InstructionToClient::UpdateBehaviors { card_data } => {
+                format!("update_behaviors|{}{}", Tag::CardInstanceId(card_data.instance_id).build()?, Tag::CardBehaviors(card_data).build()?)
+            }
+            InstructionToClient::Animate { card, location, duration, preset } => {
+                format!("animate|{}{}{}{}", Tag::CardInstanceId(card).build()?, Tag::LocationId(location).build()?, Tag::F32(duration).build()?, Tag::String(preset.to_string()).build()?)
             }
             _ => todo!("instruction not implemented"),
         })

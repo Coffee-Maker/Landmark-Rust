@@ -7,6 +7,8 @@ health = 10
 defense = 6
 
 [[behavior]]
+    name = "Shadow"
+    description = "Units summoned adjacent to this one gain Hidden"
     [[behavior.trigger]]
     when = "owned:has_been_summoned"
 #    and = [

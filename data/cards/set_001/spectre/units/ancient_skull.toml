@@ -7,6 +7,7 @@ defense = 4
 types = ["husk", "specter"]
 
 [[behavior]]
+    name = "Animate"
     description = "When a {{card:phantom}} is equipped to this card, replace it with a {{card:phantom_skull}}"
 
     [[behavior.trigger]]

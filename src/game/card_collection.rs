@@ -30,6 +30,14 @@ impl Location for CardCollection {
         self.cards.clear()
     }
 
+    fn shuffle(&mut self) {
+        let mut new_cards = Vec::new();
+        while self.cards.len() > 0{
+            new_cards.push(self.cards.remove(fastrand::usize(0..self.cards.len())));
+        }
+        self.cards = new_cards;
+    }
+
     fn contains(&self, card: CardInstanceId) -> bool { self.cards.contains(&card) }
 
     fn get_card(&self) -> Option<CardInstanceId> {

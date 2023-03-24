@@ -4,14 +4,8 @@ cost = 4
 types = ["mystical"]
 
 [[behavior]]
-    [[behavior.trigger]]
-    when = "this:will_be_equipped"
-    #and = { check = "belongs_to", with = { target = "context", owner = "owner" } } # a not gate for all checks? check = "not:belongs_to"
-
-    [[behavior.action]]
-    then = "cancel"
-
-[[behavior]]
+    name = "Bind"
+    description = "When equipping this Item, select an opponent Unit on the Field. The selected unit is now the 'Bound' unit"
     [[behavior.trigger]]
     when = "this:has_been_equipped"
 
@@ -24,6 +18,8 @@ types = ["mystical"]
     with = { target = "this", context_key = "bound_unit", personal_key = "bound_unit" }
 
 [[behavior]]
+    name = "Death Don't Us Part"
+    description = "When the equippd Unit has been destroyed, destroy the Bound Unit"
     [[behavior.trigger]]
     when = "this:will_be_destroyed"
 

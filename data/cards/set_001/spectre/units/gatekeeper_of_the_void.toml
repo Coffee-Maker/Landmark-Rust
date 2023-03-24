@@ -7,6 +7,8 @@ defense = 3
 types = ["specter"]
 
 [[behavior]]
+    name = "Warlord"
+    description = "This Unit's attack is the summed attack of it's adjacent Units"
     [[behavior.trigger]]
     when = "either:turn_started"
 
@@ -15,6 +17,9 @@ types = ["specter"]
     with = { target = "this", filter = { adjacent_to = "this", contains_types = ["specter"] } }
 
 [[behavior]]
+    name = "No summon allowed :("
+    description = "While this Unit is on the field, you may not summon another Unit"
+
     [[behavior.trigger]]
     when = "owned:will_be_summoned" # or: when = "owned:not_this:will_be_summoned"
     # and = { check = "ownership", with = { ownership = "this" }} # or

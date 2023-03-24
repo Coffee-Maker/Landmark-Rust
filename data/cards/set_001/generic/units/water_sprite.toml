@@ -6,11 +6,18 @@ attack = 1
 health = 1
 defense = 0
 
-[[behaviour]]
-description = "If a third 'Water Sprite' enters the field, replace it with a 'Water Golem' and discard the other 2."
-    [[behaviour.trigger]]
-    when = "this:has_been_summoned"
+[[behavior]]
+    name = "Conglomerate"
+    description = "When summoned next to two 2 other Water Sprites, destroy them and replace this one with a Water Golem."
 
-    [[behaviour.action]]
+    [[behavior.trigger]]
+    when = "this:has_been_summoned"
+    and = { check = "count", with = { filter = { adjacent_to = "this", id_is = ["water_sprite"] }, condition = "greater_equal", count = 2 } }
+
+    [[behavior.action]]
+    then = "destroy"
+    with = { target = { find = { filter = { adjacent_to = "this", id_is = ["water_sprite"] } } } }
+
+    [[behavior.action]]
     then = "replace"
-    with = { target = "FindMany" } # Needs further implementation
+    with = { target = "this", replacement = "water_golem" } # Needs further implementation

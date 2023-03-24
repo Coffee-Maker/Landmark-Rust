@@ -4,6 +4,9 @@ cost = 1
 types = ["specter"]
 
 [[behavior]]
+    name = "Possession"
+    description = "Phantom may only be equipped to Husk Type Units"
+
     [[behavior.trigger]]
     when = "this:will_be_equipped"
     and = { check = "type_contains", with = { target = "equip_target", types = ["husk"] } }

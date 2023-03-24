@@ -47,7 +47,10 @@ impl CardRegistry {
         let mut attack = 0;
 
         match card.card_category {
-            CardCategory::Hero => {}
+            CardCategory::Hero {health: h, defense: d} => {
+                health = h;
+                defense = d;
+            }
             CardCategory::Landscape { .. } => {}
             CardCategory::Unit { health: h, attack: a, defense: d } => {
                 health = h;

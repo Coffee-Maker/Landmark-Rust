@@ -13,6 +13,7 @@ health = 2
     with = { target = "this", counter = "spectral_transition", value = 3 }
 
 [[behavior]]
+    name = "Become not fetus"
     description = "After this {{keyword:unit}} has been deployed for 3 of your turns, replace this {{keyword:unit}} with a {{card:phantom}}."
 
     [[behavior.trigger]]

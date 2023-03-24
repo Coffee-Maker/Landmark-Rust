@@ -4,6 +4,8 @@ cost = 2
 types = ["mystical"]
 
 [[behavior]]
+    name = "Disguise"
+    description = "The equipped unit gains all types"
     [[behavior.trigger]]
     when = "this:has_been_equipped"
 

@@ -1,0 +1,7 @@
+﻿category = "unit"
+name = "Wheat Golem"
+cost = 4
+types = ["creature"]
+attack = 2
+health = 4
+defense = 4

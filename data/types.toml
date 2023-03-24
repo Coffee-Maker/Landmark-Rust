@@ -15,5 +15,9 @@ id = "military"
 name = "Military"
 
 [[type]]
-id = "animal"
-name = "Animal"
+id = "creature"
+name = "Creature"
+
+[[type]]
+id = "mechanical"
+name = "Mechanical"

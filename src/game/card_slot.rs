@@ -27,20 +27,23 @@ impl Location for CardSlot {
         self.location_id
     }
 
-    fn add_card(&mut self, _card: CardInstanceId) -> Result<()> {
+    fn add_card(&mut self, card: CardInstanceId) -> Result<()> {
         if self.card.is_some() { return Err(eyre!("Attempted to put card in card slot that is already populated")) }
-        self.card = Some(_card);
+        self.card = Some(card);
         Ok(())
     }
 
-    fn remove_card(&mut self, _card: CardInstanceId) {
-        if self.card.is_some() && self.card.unwrap() == _card {
+    fn remove_card(&mut self, card: CardInstanceId) {
+        if let Some(stored) = self.card && stored == stored {
             self.card = None;
-        }        
+        }
     }
 
     fn clear(&mut self) {
         self.card = None;
+    }
+
+    fn shuffle(&mut self) {
     }
 
     fn contains(&self, card: CardInstanceId) -> bool { Some(card) == self.card }

@@ -1,23 +1,26 @@
+use std::char::MAX;
 use std::collections::{HashMap, VecDeque};
 use std::fmt::{Display, Formatter};
 use std::num::ParseIntError;
 use std::str::FromStr;
 
 use color_eyre::eyre;
-use color_eyre::eyre::{ContextCompat, eyre};
+use color_eyre::eyre::{Context, ContextCompat, eyre};
 use eyre::Result;
 use futures_util::FutureExt;
 use once_cell::sync::Lazy;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 use tokio_tungstenite::WebSocketStream;
+use crate::game::animation_presets::AnimationPreset;
 
 use crate::game::board::Board;
 use crate::game::card_collection::CardCollection;
 use crate::game::card_slot::CardSlot;
 use crate::game::cards::card_behaviors;
 use crate::game::cards::card_behaviors::CardBehaviorResult;
-use crate::game::cards::card_deserialization::CardBehaviorTriggerWhenName;
+use crate::game::cards::card_deserialization::{CardBehaviorTriggerWhenName, CardCategory};
+use crate::game::cards::card_instance::CardInstance;
 use crate::game::cards::card_registry::CardRegistry;
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::id_types::{CardInstanceId, location_ids, LocationId, PlayerId, PromptInstanceId, ServerInstanceId};
@@ -57,6 +60,11 @@ pub async fn game_service(websocket: WebSocketStream<TcpStream>) -> Result<()> {
                             callback.create_instructions(&mut communicator).await?;
                         }
                         current_callback = new_callback;
+                        if current_callback.is_none() {
+                            let callback = game_state.show_selectable_cards(&mut communicator).await?;
+                            callback.create_instructions(&mut communicator).await?;
+                            current_callback = Some(callback);
+                        }
                     }
                 }
                 continue;
@@ -107,6 +115,12 @@ pub async fn game_service(websocket: WebSocketStream<TcpStream>) -> Result<()> {
                 communicator.send_error(&e.to_string()).await?;
             }
         }
+
+        if current_callback.is_none() {
+            let callback = game_state.show_selectable_cards(&mut communicator).await?;
+            callback.create_instructions(&mut communicator).await?;
+            current_callback = Some(callback);
+        }
     }
 }
 
@@ -120,6 +134,8 @@ pub type CardBehaviorTriggerQueue = VecDeque<CardBehaviorTriggerWithContext>;
 
 pub struct GameState {
     pub current_turn: PlayerId,
+    pub starting_player: PlayerId,
+    pub round: u32,
     pub player_1: Player,
     pub player_2: Player,
     pub board: Board,
@@ -132,6 +148,8 @@ impl GameState {
     pub fn new() -> Self {
         Self {
             current_turn: Player1,
+            starting_player: Player1,
+            round: 0,
             player_1: Player::new(Player1, location_ids::PLAYER_1_DECK, location_ids::PLAYER_1_HAND),
             player_2: Player::new(Player2, location_ids::PLAYER_2_DECK, location_ids::PLAYER_2_HAND),
             resources: StateResources::new(),
@@ -174,7 +192,8 @@ impl GameState {
         }
 
         // Set random turn
-        self.set_current_turn(if fastrand::bool() { Player1 } else { Player2 }, communicator).await?;
+        self.starting_player = if fastrand::bool() { Player1 } else { Player2 };
+        self.set_current_turn(self.starting_player, communicator).await?;
 
         Ok(())
     }
@@ -183,25 +202,30 @@ impl GameState {
         let card_id = get_tag("card", data)?.parse::<CardInstanceId>()?;
         let target_location_id = get_tag("location", data)?.parse::<LocationId>()?;
 
-        let card = self.resources.card_instances.get(&card_id).context("Unable to find card")?;
-        let card_location = card.location.clone();
+        let card_instance = self.resources.card_instances.get(&card_id).context("Unable to find card")?;
+        let card_location = card_instance.location.clone();
 
-        if card.location == target_location_id {
+        if card_instance.location == target_location_id {
             return Ok(false);
         }
 
         let mut allow = true;
-        if card.owner != self.current_turn {
+        if card_instance.owner != self.current_turn {
             communicator.send_error("Can't play card out of turn");
             allow = false;
         }
 
-        if card.location != self.get_player(card.owner).hand {
+        if card_instance.location != self.get_player(card_instance.owner).hand {
             communicator.send_error("Can't play card from this location");
             allow = false;
         }
 
-        if self.board.get_side(card.owner).field.contains(&target_location_id) == false {
+        if self.board.get_side(card_instance.owner).field.contains(&target_location_id) == false {
+            communicator.send_error("Can't play card to this location");
+            allow = false;
+        }
+
+        if card_instance.cost > self.get_player(self.current_turn).thaum {
             communicator.send_error("Can't play card to this location");
             allow = false;
         }
@@ -217,8 +241,11 @@ impl GameState {
         let card_id = get_tag("card", data)?.parse::<CardInstanceId>()?;
         let target_location_id = get_tag("location", data)?.parse::<LocationId>()?;
 
-        let card = self.resources.card_instances.get(&card_id).context("Unable to find card")?;
-        let card_location = card.location.clone();
+        let card_instance = self.resources.card_instances.get(&card_id).context("Unable to find card")?;
+        let card_location = card_instance.location.clone();
+
+        let new_player_thaum = self.get_player(card_instance.owner).thaum - card_instance.cost;
+        let player = card_instance.owner;
 
         let queue = self.resources.pre_move_card(card_id, target_location_id, self.current_turn, communicator).await?;
         let behavior_result = card_behaviors::trigger_all_card_behaviors(
@@ -230,18 +257,19 @@ impl GameState {
 
         if behavior_result == CardBehaviorResult::Cancel {
             communicator.send_game_instruction( InstructionToClient::MoveCard { card: card_id, to: card_location }).await?;
-            return Ok(Some(self.show_selectable_cards(communicator).await?))
+            return Ok(None)
         }
 
-        let queue = self.resources.move_card(card_id, target_location_id, self.current_turn, communicator).await?;
+        self.get_player_mut(player).set_thaum(new_player_thaum, communicator).await?;
+
+        let queue = self.resources.move_card(card_id, target_location_id, self.current_turn, None, communicator).await?;
         card_behaviors::trigger_all_card_behaviors(
             queue,
             self.current_turn,
             self,
             communicator
         ).await?;
-
-        Ok(Some(self.show_selectable_cards(communicator).await?))
+        Ok(None)
     }
 
     pub async fn player_pass_turn(&mut self, data: &str, communicator: &mut GameCommunicator) -> Result<PromptCallback> {
@@ -253,11 +281,44 @@ impl GameState {
 
     pub async fn set_current_turn(&mut self, player_id: PlayerId, communicator: &mut GameCommunicator) -> Result<PromptCallback> {
         self.current_turn = player_id;
+        if player_id == self.starting_player.opponent() {
+            self.round += 1;
+        }
         communicator.send_game_instruction(InstructionToClient::PassTurn { player_id }).await?;
         self.start_turn(communicator).await
     }
 
     pub async fn start_turn(&mut self, communicator: &mut GameCommunicator) -> Result<PromptCallback> {
+        let thaum = self.round + 1;
+        let player = match self.current_turn {
+            Player1 => &mut self.player_1,
+            Player2 => &mut self.player_2,
+        };
+        player.set_thaum(thaum, communicator).await?;
+        // Round 0 is the first turn. Attacks shouldn't be declared and a card should not be drawn
+        if self.round > 0 {
+            player.draw_card(&mut self.resources, communicator).await?;
+        }
+
+        // Units recover their base defense
+        let mut cards = self.resources.card_instances.values_mut().collect::<Vec<&mut CardInstance>>();
+        cards.retain(|c| location_ids::identify_location(c.location).unwrap().is_field());
+        cards.retain(|c| c.owner == self.current_turn);
+        for unit in cards {
+            match unit.card.card_category {
+                CardCategory::Unit { health, attack, defense } => unit.stats.defense = defense,
+                _ => {}
+            }
+            communicator.send_game_instruction(InstructionToClient::UpdateData { card_data: unit.clone() }).await?;
+        }
+
+        let hero = self.resources.card_instances.get_mut(&player.hero).context("Hero not found")?;
+        match hero.card.card_category {
+            CardCategory::Hero { health, defense } => hero.stats.defense = defense,
+            _ => {}
+        }
+        communicator.send_game_instruction(InstructionToClient::UpdateData { card_data: hero.clone() }).await?;
+
         self.show_selectable_cards(communicator).await
     }
 
@@ -299,13 +360,31 @@ impl GameState {
             Ok(PromptCallbackResult::End(None))
         }, true);
 
-        for (id, card) in &self.resources.card_instances {
-            if card.owner == self.current_turn || location_ids::identify_location(card.location)?.is_field() == false {
-                continue;
-            }
+        if self.round == 0 {
+            return Ok(callback)
+        }
 
+        let mut cards: Vec<&CardInstance> = self.resources.card_instances.values().collect();
+        cards.retain(|c| location_ids::identify_location(c.location).unwrap().is_field_of(self.current_turn.opponent()));
+
+        let front_most_row = cards.iter().fold(100, |current_min, card| {
+            location_ids::get_slot_position(card.location, &self.board).unwrap().z.min(current_min)
+        });
+
+        cards.retain(|c| {
+            location_ids::get_slot_position(c.location, &self.board).unwrap().z == front_most_row
+        });
+
+        if cards.len() == 0 {
+            // No more defending cards, hero should be attackable
+            let hero_slot = self.board.get_side(self.current_turn.opponent()).hero;
+            cards.push(self.resources.card_instances.get(
+                &self.resources.locations.get(&hero_slot).context("Hero slot does not exist")?.get_card().context("Hero was not found in hero slot")?).context("Hero does not exist")?);
+        }
+
+        for card in cards{
             callback.add_prompt(PromptProfile {
-                prompt_type: PromptType::AttackCard(*id),
+                prompt_type: PromptType::AttackCard(card.instance_id),
                 value: false,
                 owner: self.current_turn,
             })
@@ -313,26 +392,88 @@ impl GameState {
         Ok(callback)
     }
 
-    pub async fn declare_attack(&mut self, source: CardInstanceId, target: CardInstanceId, communicator: &mut GameCommunicator) -> Result<()> {
+    pub async fn declare_attack(&mut self, source: CardInstanceId, target: CardInstanceId, communicator: &mut GameCommunicator) -> Result<Option<PromptCallback>> {
+        let mut queue = CardBehaviorTriggerQueue::new();
+        let mut context = CardBehaviorContext::new(self.current_turn);
+        context.insert("this", ContextValue::CardInstance(source));
+        context.insert("target", ContextValue::CardInstance(target));
+        queue.push_back((CardBehaviorTriggerWhenName::WillAttack, context));
+
+        let mut context = CardBehaviorContext::new(self.current_turn);
+        context.insert("this", ContextValue::CardInstance(target));
+        context.insert("attacker", ContextValue::CardInstance(source));
+        queue.push_back((CardBehaviorTriggerWhenName::WillBeAttacked, context));
+
+        let result = card_behaviors::trigger_all_card_behaviors(queue, self.current_turn, self, communicator).await?;
+        match result {
+            CardBehaviorResult::Ok => {}
+            CardBehaviorResult::Cancel => return Ok(None)
+        }
+
         let mut source_stats = self.resources.card_instances.get(&source).context("Failed to find card instance")?.stats;
-        let mut target_stats = self.resources.card_instances.get(&target).context("Failed to find card instance")?.stats;
-        let mut kill = false;
+        let target_instance = self.resources.card_instances.get(&target).context("Failed to find card instance")?;
+        let mut target_stats = target_instance.stats;
+        let target_location = target_instance.location;
+        let target_owner = target_instance.owner;
+
+        let mut kill_target = false;
         target_stats.defense -= source_stats.attack;
         if target_stats.defense <= 0 {
             target_stats.health += target_stats.defense;
             if target_stats.health <= 0 {
                 target_stats.health = 0;
-                kill = true;
+                kill_target = true;
             }
             target_stats.defense = 0;
         }
 
-        self.resources.card_instances.get_mut(&target).unwrap().stats = target_stats;
-        communicator.send_game_instruction(InstructionToClient::UpdateData { card_data: self.resources.card_instances.get(&target).unwrap().clone() }).await?;
-        if kill {
-            self.resources.destroy_card(&mut self.board, target, communicator).await?;
+        let mut kill_source = false;
+        source_stats.defense -= target_stats.attack;
+        if source_stats.defense <= 0 {
+            source_stats.health += source_stats.defense;
+            if source_stats.health <= 0 {
+                source_stats.health = 0;
+                kill_source = true;
+            }
+            source_stats.defense = 0;
         }
-        Ok(())
+
+        self.resources.card_instances.get_mut(&target).unwrap().stats = target_stats;
+        self.resources.card_instances.get_mut(&source).unwrap().stats = source_stats;
+
+        communicator.send_game_instruction(InstructionToClient::Animate {
+            card: source,
+            location: target_location,
+            duration: 1.0,
+            preset: AnimationPreset::Attack,
+        }).await?;
+        communicator.send_game_instruction(InstructionToClient::UpdateData { card_data: self.resources.card_instances.get(&target).unwrap().clone() }).await?;
+        communicator.send_game_instruction(InstructionToClient::UpdateData { card_data: self.resources.card_instances.get(&source).unwrap().clone() }).await?;
+
+        let mut queue = CardBehaviorTriggerQueue::new();
+        let mut context = CardBehaviorContext::new(self.current_turn);
+        context.insert("this", ContextValue::CardInstance(source));
+        queue.push_back((CardBehaviorTriggerWhenName::HasAttacked, context.clone()));
+        // context.insert("landscape", ContextValue::(target_location))
+        // queue.push_back((CardBehaviorTriggerWhenName::HasEnteredLandscape, context));
+
+        let mut context = CardBehaviorContext::new(self.current_turn);
+        context.insert("this", ContextValue::CardInstance(target));
+        queue.push_back((CardBehaviorTriggerWhenName::HasBeenAttacked, context));
+
+        card_behaviors::trigger_all_card_behaviors(queue, self.current_turn, self, communicator).await?;
+
+        if kill_target {
+            let queue = self.resources.destroy_card(&mut self.board, target, communicator).await?;
+            card_behaviors::trigger_all_card_behaviors(queue, target_owner, self, communicator).await?;
+        }
+
+        if kill_source {
+            let queue = self.resources.destroy_card(&mut self.board, source, communicator).await?;
+            card_behaviors::trigger_all_card_behaviors(queue, target_owner, self, communicator).await?;
+        }
+
+        Ok(None)
     }
 
     pub fn get_player(&self, id: PlayerId) -> &Player {

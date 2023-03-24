@@ -9,8 +9,10 @@ pub type ServerInstanceId = u64;
 pub struct LocationId(pub ServerInstanceId);
 
 pub mod location_ids {
-    use color_eyre::eyre::eyre;
+    use color_eyre::eyre::{ContextCompat, eyre};
     use color_eyre::Result;
+    use crate::game::board::Board;
+    use crate::game::cards::card_deserialization::SlotPosition;
 
     use crate::game::id_types::{LocationId, PlayerId};
     use crate::game::player::Player;
@@ -48,6 +50,21 @@ pub mod location_ids {
 
     pub fn player_field_location_id(player: PlayerId, index: u64) -> LocationId {
         LocationId(if player == PlayerId::Player1 { 1000 } else { 2000 } + index)
+    }
+
+    pub fn get_slot_position(location: LocationId, board: &Board) -> Result<SlotPosition> {
+        let location_identity = identify_location(location)?;
+        let index = match location_identity {
+            LocationIdentity::Player1Field => location.0 - 1000,
+            LocationIdentity::Player2Field => location.0 - 2000,
+            _ => return Err(eyre!("Tried to get slot position of a location that is not on the field")),
+        };
+
+        return Ok(match location_identity {
+            LocationIdentity::Player1Field => *board.side_1.field_slot_positions.get(index as usize).context("Tried to get a slot position for a slot index that is out of range")?,
+            LocationIdentity::Player2Field => *board.side_1.field_slot_positions.get(index as usize).context("Tried to get a slot position for a slot index that is out of range")?,
+            _ => return Err(eyre!("Tried to get slot position of a location that is not on the field")),
+        })
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

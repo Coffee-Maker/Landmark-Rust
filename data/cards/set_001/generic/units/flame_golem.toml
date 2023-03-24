@@ -1,10 +1,10 @@
 ﻿category = "unit"
-name = "Ice Golem"
-cost = 6
-types = ["ice", "golem"]
-attack = 7
-health = 3
-defense = 7
+name = "Flame Golem"
+cost = 5
+types = ["fire", "golem"]
+attack = 10
+health = 4
+defense = 3
 
 #[[behaviour]]
 #description = "When this Unit enters the Field, it gains Protected for 2 Turns."

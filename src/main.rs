@@ -2,7 +2,7 @@
 #![allow(unused)]
 
 use std::fs;
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{eyre, Result};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::tungstenite::handshake::server::Request;
 use tokio_tungstenite::tungstenite::handshake::server::Response;
@@ -30,7 +30,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn accept_connection(stream: TcpStream) -> Result<()> {
+async fn accept_connection(stream: TcpStream) {
     let mut service_type = ServiceType::None;
 
     let callback = |req: &Request, response: Response| {
@@ -51,15 +51,20 @@ async fn accept_connection(stream: TcpStream) -> Result<()> {
         }
     };
 
-    let websocket = tokio_tungstenite::accept_hdr_async(stream, callback).await?;
+    let websocket = tokio_tungstenite::accept_hdr_async(stream, callback).await.unwrap();
 
     match service_type {
         ServiceType::None => {
             println!("No service type found");
-            Ok(())
         }
-        ServiceType::Game => game_state::game_service(websocket).await,
-        ServiceType::CardFinder => card_finder::card_finder::finder_service(websocket).await,
+        ServiceType::Game => {
+            if let Err(e) = game_state::game_service(websocket).await {
+                eprintln!("{}", e);
+            }
+        },
+        ServiceType::CardFinder => {
+            card_finder::card_finder::finder_service(websocket).await;
+        },
     }
 }
 

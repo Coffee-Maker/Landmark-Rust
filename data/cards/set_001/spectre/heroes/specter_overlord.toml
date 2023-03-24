@@ -3,3 +3,4 @@ name = "Specter Overlord"
 description = "A test hero."
 cost = 5
 types = ["specter"]
+health = 30

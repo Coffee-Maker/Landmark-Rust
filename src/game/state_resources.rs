@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
-use color_eyre::eyre::ContextCompat;
+use color_eyre::eyre::{Context, ContextCompat};
 use color_eyre::Result;
+use crate::game::animation_presets::AnimationPreset;
 
 use crate::game::board::Board;
+use crate::game::cards;
 use crate::game::cards::card_deserialization::{CardBehavior, CardBehaviorAction, CardBehaviorTriggerWhenName};
 use crate::game::cards::card_instance::CardInstance;
 use crate::game::game_communicator::GameCommunicator;
@@ -46,24 +48,40 @@ impl StateResources {
     }
 
     pub async fn pre_move_card(&self, card_instance_id: CardInstanceId, to: LocationId, move_owner: PlayerId, communicator: &mut GameCommunicator) -> Result<CardBehaviorTriggerQueue> {
-        let mut card_behavior_trigger_contexts = CardBehaviorTriggerQueue::new();
+        let mut trigger_queue = CardBehaviorTriggerQueue::new();
 
         let mut context = CardBehaviorContext::new(move_owner);
         context.insert("card_instance", ContextValue::CardInstance(card_instance_id));
 
-        card_behavior_trigger_contexts.push_back((CardBehaviorTriggerWhenName::WillBeMoved, context.clone()));
-        card_behavior_trigger_contexts.push_back((CardBehaviorTriggerWhenName::WillEnterLandscape, context.clone()));
+        trigger_queue.push_back((CardBehaviorTriggerWhenName::WillBeMoved, context.clone()));
 
-        Ok(card_behavior_trigger_contexts)
+        // Check if a unit changed landscapes
+        let old_location = location_ids::identify_location(
+            self.card_instances.get(&card_instance_id).context("Tried to move card that does not exist")?.location).context("Tried to move card from a location that is not identifiable")?;
+        let new_location = location_ids::identify_location(to).context("Tried to move card to non-identifiable location")?;
+
+        if old_location.is_field() && old_location != new_location { // It checks if the card just entered a landscape
+            trigger_queue.push_back((CardBehaviorTriggerWhenName::WillLeaveLandscape, context.clone()));
+
+            if new_location.is_field() {
+                trigger_queue.push_back((CardBehaviorTriggerWhenName::WillEnterLandscape, context.clone()));
+            }
+        }
+
+        if old_location.is_field() == false && new_location.is_field() {
+            trigger_queue.push_back((CardBehaviorTriggerWhenName::WillBeSummoned, context.clone()));
+            trigger_queue.push_back((CardBehaviorTriggerWhenName::WillEnterLandscape, context.clone()));
+        }
+
+        Ok(trigger_queue)
     }
 
-    pub async fn move_card(&mut self, card_instance_id: CardInstanceId, to: LocationId, move_owner: PlayerId, communicator: &mut GameCommunicator) -> Result<CardBehaviorTriggerQueue> {
+    pub async fn move_card(&mut self, card_instance_id: CardInstanceId, to: LocationId, move_owner: PlayerId, animation: Option<AnimationPreset>, communicator: &mut GameCommunicator) -> Result<CardBehaviorTriggerQueue> {
         let mut card_instance = self.card_instances.get_mut(&card_instance_id).context("Card instance not found while attempting a move")?;
         let from = card_instance.location;
         let from_instance = self.locations.get_mut(&from).context("Tried to move card from a location that doesn't exist")?;
         from_instance.remove_card(card_instance_id);
         card_instance.location = to.clone();
-        //let owner = card_instance.owner.clone();
 
         let to_instance = self
             .locations
@@ -71,6 +89,15 @@ impl StateResources {
             .context("Tried to move a card to a location that doesn't exist")?;
         to_instance.add_card(card_instance_id)?;
         let to_id = to_instance.get_location_id();
+
+        if let Some(animation) = animation {
+            communicator.send_game_instruction(InstructionToClient::Animate {
+                card: card_instance_id,
+                location: to,
+                duration: 0.5,
+                preset: animation,
+            }).await?;
+        }
 
         communicator.send_game_instruction(InstructionToClient::MoveCard {
             card: card_instance_id,
@@ -82,22 +109,22 @@ impl StateResources {
 
         let mut context= CardBehaviorContext::new(move_owner);
         context.insert("card_instance", ContextValue::CardInstance(card_instance_id));
-        trigger_queue.push_back((CardBehaviorTriggerWhenName::HasBeenMoved, context));
+        trigger_queue.push_back((CardBehaviorTriggerWhenName::HasBeenMoved, context.clone()));
 
         // Check if a unit changed landscapes
-        let from_location_identity = location_ids::identify_location(from)?;
-        let to_location_identity = location_ids::identify_location(to)?;
+        let old_location = location_ids::identify_location(from)?;
+        let new_location = location_ids::identify_location(to)?;
 
-        let from_field_1 = from_location_identity == location_ids::LocationIdentity::Player1Field;
-        let from_field_2 = from_location_identity == location_ids::LocationIdentity::Player2Field;
-        let to_field_1 = to_location_identity == location_ids::LocationIdentity::Player1Field;
-        let to_field_2 = to_location_identity == location_ids::LocationIdentity::Player2Field;
+        if old_location.is_field() && old_location != new_location { // It checks if the card just entered a landscape
+            trigger_queue.push_back((CardBehaviorTriggerWhenName::HasLeftLandscape, context.clone()));
 
-        if (from_field_1 != to_field_1) && (from_field_2 != to_field_2) && ((from_field_1 && to_field_2) || (from_field_2 && to_field_1)) { // It checks if the card just entered a landscape
-            let mut context = CardBehaviorContext::new(move_owner);
-            context.insert("card_instance", ContextValue::CardInstance(card_instance_id));
-            trigger_queue.push_back((CardBehaviorTriggerWhenName::HasLeftLandscape, context));
+            if new_location.is_field() {
+                trigger_queue.push_back((CardBehaviorTriggerWhenName::HasEnteredLandscape, context.clone()));
+            }
+        }
 
+        if old_location.is_field() == false && new_location.is_field() {
+            trigger_queue.push_back((CardBehaviorTriggerWhenName::HasBeenSummoned, context.clone()));
             let mut context = CardBehaviorContext::new(move_owner);
             context.insert("card_instance", ContextValue::CardInstance(card_instance_id));
             trigger_queue.push_back((CardBehaviorTriggerWhenName::HasEnteredLandscape, context));
@@ -106,7 +133,7 @@ impl StateResources {
         Ok(trigger_queue)
     }
 
-    pub async fn create_card(&mut self, id: &str, location: LocationId, owner: PlayerId, communicator: &mut GameCommunicator) -> Result<()> {
+    pub async fn create_card(&mut self, id: &str, location: LocationId, owner: PlayerId, communicator: &mut GameCommunicator) -> Result<CardBehaviorTriggerQueue> {
         let card_instance_id = CardInstanceId(fastrand::u64(..));
 
         let loc = self.locations
@@ -117,7 +144,7 @@ impl StateResources {
             Ok(card) => card,
             Err(e) => {
                 eprintln!("{e}");
-                return Ok(());
+                return Err(e);
             }
         };
         card.instance_id = card_instance_id;
@@ -130,26 +157,24 @@ impl StateResources {
             location_id: loc.get_location_id()
         }).await?;
 
+        communicator.send_game_instruction(InstructionToClient::UpdateBehaviors { card_data: card.clone() }).await?;
+
         self.card_instances.insert(card_instance_id, card);
         loc.add_card(card_instance_id)?;
 
-        // Todo: Reimplement this
-        // if self.board.get_relevant_landscape(&self.card_instances, card_key).is_some() {
-        //     let mut context = TriggerContext::new();
-        //     context.add_card(self, card_key);
-        //     self.trigger_card_events(owner, communicator, BehaviorTrigger::Summon, &context)?;
-        //     self.trigger_card_events(owner, communicator, BehaviorTrigger::EnterLandscape, &context)?;
-        // }
+        let mut queue = CardBehaviorTriggerQueue::new();
+        if location_ids::identify_location(location).context("Tried to create card to non-identifiable location")?.is_field() {
+            let mut context = CardBehaviorContext::new(owner);
+            context.insert("card_instance", ContextValue::CardInstance(card_instance_id));
+            queue.push_back((CardBehaviorTriggerWhenName::HasBeenSummoned, context.clone()));
+            queue.push_back((CardBehaviorTriggerWhenName::HasEnteredLandscape, context));
+        }
 
-        Ok(())
+        Ok(queue)
     }
 
-    pub async fn destroy_card(&mut self, board: &mut Board, card: CardInstanceId, communicator: &mut GameCommunicator) -> Result<()> {
+    pub async fn destroy_card(&mut self, board: &mut Board, card: CardInstanceId, communicator: &mut GameCommunicator) -> Result<CardBehaviorTriggerQueue> {
         let card_instance = self.card_instances.get(&card).unwrap();
-
-        communicator.send_game_instruction( InstructionToClient::MoveCard {
-            card: self.card_instances.get(&card).context("Card to be destroyed not found")?.instance_id,
-            to: self.locations.get(&board.get_side(card_instance.owner).graveyard).context("Graveyard not found")?.get_location_id()
-        }).await
+        self.move_card(card, location_ids::player_graveyard_location_id(card_instance.owner), card_instance.owner, Some(AnimationPreset::EaseInOut), communicator).await
     }
 }

@@ -7,12 +7,16 @@ use serde::__private::de::EnumDeserializer;
 use serde::de::{Error, MapAccess, Unexpected, Visitor};
 use serde::de::value::StringDeserializer;
 use serde_enum_str::Deserialize_enum_str;
+use crate::game::cards;
 
 use crate::game::cards::card_behaviors::CardBehaviorResult;
+use crate::game::cards::card_instance::CardInstance;
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::game_state::{CardBehaviorTriggerQueue, CardBehaviorTriggerWithContext, GameState};
-use crate::game::id_types::{CardInstanceId, PlayerId};
+use crate::game::id_types::{CardInstanceId, location_ids, PlayerId};
 use crate::game::id_types::PlayerId::{Player1, Player2};
+use crate::game::player::Player;
+use crate::game::state_resources::StateResources;
 use crate::game::trigger_context::CardBehaviorContext;
 
 #[derive(Deserialize, Debug)]
@@ -20,7 +24,7 @@ pub struct Card {
     #[serde(skip_deserializing)] pub id: String,
     pub name: String,
     pub description: Option<String>,
-    pub cost: i32,
+    pub cost: u32,
     pub types: Vec<String>,
 
     #[serde(flatten)]
@@ -30,17 +34,29 @@ pub struct Card {
     pub behaviors: Vec<CardBehavior>,
 }
 
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug, PartialEq, Clone, Copy)]
 pub struct SlotPosition {
     pub x: i32,
     pub y: i32,
     pub z: i32,
 }
 
+impl SlotPosition {
+    pub fn is_adjacent_to(&self, other: SlotPosition) -> bool {
+        let delta_x = (self.x - other.x).abs();
+        let delta_y = (self.y - other.y).abs();
+        let delta_z = (self.z - other.z).abs();
+        delta_x + delta_y + delta_z == 1
+    }
+}
+
 #[derive(Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "snake_case", tag = "category")]
 pub enum CardCategory {
-    Hero,
+    Hero {
+        health: i32,
+        #[serde(default)] defense: i32
+    },
     Landscape {
         slots: Vec<SlotPosition>
     },
@@ -55,6 +71,7 @@ pub enum CardCategory {
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct CardBehavior {
+    pub name: Option<String>,
     pub description: Option<String>,
 
     #[serde(rename = "trigger")]
@@ -91,24 +108,24 @@ pub enum CardBehaviorTriggerWhenActivator {
 #[serde(rename_all = "snake_case")]
 pub enum CardBehaviorTriggerWhenName {
     // Generic
-    TurnStarted,
-    TurnEnded,
+    TurnStarted, // Todo
+    TurnEnded, // Todo
 
     // Card
-    WillDrawCard,
-    HasBeenDrawn,
-    WillDestroy,
-    WillBeDestroyed,
-    HasDestroyed,
-    HasBeenDestroyed,
+    WillDrawCard, // Todo
+    HasBeenDrawn, // Todo
+    WillDestroy, // Todo
+    WillBeDestroyed, // Todo
+    HasDestroyed, // Todo
+    HasBeenDestroyed, // Todo
     WillBeMoved,
     HasBeenMoved,
 
     // Units
-    WillBeSummoned,
-    HasBeenSummoned,
-    WillAttack,
-    WillBeAttacked,
+    WillBeSummoned, // Todo
+    HasBeenSummoned, // Todo
+    WillAttack, // Todo
+    WillBeAttacked, // Todo
     HasAttacked,
     HasBeenAttacked,
     TookDamage,
@@ -165,6 +182,35 @@ pub enum CardBehaviorTriggerAnd {
     TypeContains {
         target: CardTarget,
         types: Vec<String>,
+    },
+    Count {
+        filter: CardFilter,
+        condition: CountCondition,
+        count: i32
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum CountCondition {
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
+    Equal,
+    NotEqual
+}
+
+impl CountCondition {
+    pub fn evaluate(&self, a: i32, b: i32) -> bool {
+        match self {
+            CountCondition::Greater => a > b,
+            CountCondition::GreaterEqual => a >= b,
+            CountCondition::Less => a < b,
+            CountCondition::LessEqual => a <= b,
+            CountCondition::Equal => a == b,
+            CountCondition::NotEqual => a != b,
+        }
     }
 }
 
@@ -172,16 +218,23 @@ impl CardBehaviorTriggerAnd {
     pub async fn check(&self, context: &CardBehaviorContext, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<bool> {
         Ok(match self {
             CardBehaviorTriggerAnd::TypeContains { target, types } => {
-                let target = target.evaluate(context)?;
-                let target_instance = state.resources.card_instances.get(&target).context(format!("Card with the id {target} was not a found in state resources"))?;
+                let targets = target.evaluate(context, state)?;
                 let mut passed = true;
-                for t in types {
-                    if target_instance.card_types.contains(t) == false {
-                        passed = false;
-                        break;
+                'outer: for target in targets {
+                    let target_instance = state.resources.card_instances.get(&target).context(format!("Card with the id {target} was not a found in state resources"))?;
+                    for t in types {
+                        if target_instance.card_types.contains(t) == false {
+                            passed = false;
+                            break 'outer;
+                        }
                     }
                 }
                 passed
+            }
+            CardBehaviorTriggerAnd::Count { filter, condition, count } => {
+                let mut cards = state.resources.card_instances.values().collect::<Vec<&CardInstance>>();
+                filter.evaluate(&mut cards, &context, state);
+                condition.evaluate(cards.len() as i32, *count)
             }
         })
     }
@@ -203,7 +256,7 @@ impl Default for PlayerTarget {
 }
 
 impl PlayerTarget {
-    pub fn get(&self, owner: PlayerId) -> Vec<PlayerId> {
+    pub fn evaluate(&self, owner: PlayerId) -> Vec<PlayerId> {
         match self {
             PlayerTarget::Owner => vec!(owner),
             PlayerTarget::Opponent => {
@@ -226,6 +279,16 @@ pub enum UnitTarget {
     All,
 }
 
+impl UnitTarget {
+    pub fn evaluate(&self, context: &CardBehaviorContext) -> Result<CardInstanceId> {
+        Ok(match self {
+            UnitTarget::This => context.get("card_instance").context("'this' was not a valid card target for this context")?.as_card_instance().context("'this' was not a card instance in context")?,
+            UnitTarget::Find { .. } => todo!(),
+            UnitTarget::All => todo!(),
+        })
+    }
+}
+
 impl Default for UnitTarget {
     fn default() -> Self {
         Self::All
@@ -246,12 +309,16 @@ pub enum CardTarget {
 }
 
 impl CardTarget {
-    pub fn evaluate(&self, context: &CardBehaviorContext) -> Result<CardInstanceId> {
+    pub fn evaluate(&self, context: &CardBehaviorContext, state: &GameState) -> Result<Vec<CardInstanceId>> {
         Ok(match self {
-            CardTarget::This => todo!(),
+            CardTarget::This => vec!(context.get("card_instance").context("'this' was not a valid card target for this context")?.as_card_instance().context("'this' was not a card instance in context")?),
             CardTarget::EquipTarget => todo!(),
-            CardTarget::Find { .. } => todo!(),
-            CardTarget::Context { context_key } => context.get(context_key).context(format!("Context does not contain the key {context_key}"))?.as_card_instance().context(format!("Context value with key {context_key} was not a card instance"))?,
+            CardTarget::Find { filter } => {
+                let mut cards = state.resources.card_instances.values().collect::<Vec<&CardInstance>>();
+                filter.evaluate(&mut cards, context, state)?;
+                cards.iter().map(|c| c.instance_id).collect::<Vec<CardInstanceId>>()
+            },
+            CardTarget::Context { context_key } => vec!(context.get(context_key).context(format!("Context does not contain the key {context_key}"))?.as_card_instance().context(format!("Context value with key {context_key} was not a card instance"))?),
         })
     }
 }
@@ -272,6 +339,55 @@ pub struct CardFilter {
     owned_by: Option<PlayerTarget>,
     adjacent_to: Option<UnitTarget>,
     contains_types: Option<Vec<String>>,
+    id_is: Option<Vec<String>>,
+}
+
+impl CardFilter {
+    pub fn evaluate(&self, cards: &mut Vec<&CardInstance>, context: &CardBehaviorContext, state: &GameState) -> Result<()> {
+        if let Some(owned_by) = &self.owned_by {
+            cards.retain(|c| owned_by.evaluate(context.owner).contains(&c.owner))
+        }
+
+        if let Some(adjacent_to) = &self.adjacent_to {
+            cards.retain(|c| {
+                let position = location_ids::get_slot_position(c.location, &state.board);
+                if let Ok(position) = position {
+                    if let Ok(card_to_check) = adjacent_to.evaluate(context) {
+                        let check_card_instance = state.resources.card_instances.get(&card_to_check);
+                        if let Some(check_card_instance) = check_card_instance {
+                            let check_slot_pos = location_ids::get_slot_position(check_card_instance.location, &state.board);
+                            if let Ok(check_slot_pos) = check_slot_pos {
+                                if check_slot_pos.is_adjacent_to(position) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+                // Todo: Leaving that monstrosity there as a welcome back for Marc
+                false
+            });
+        }
+
+        if let Some(contains_types) = &self.contains_types {
+            cards.retain(|c| {
+                for t in contains_types {
+                    return c.card_types.contains(t);
+                }
+                false
+            });
+        }
+
+        if let Some(id_is) = &self.id_is {
+            cards.retain(|c| {
+                for id in id_is {
+                    return c.card.id == *id;
+                }
+                false
+            })
+        }
+        Ok(())
+    }
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -359,7 +475,7 @@ impl CardBehaviorAction {
 
         let result = match self {
             CardBehaviorAction::DrawCard { target } => {
-                for player in target.get(context.owner) {
+                for player in target.evaluate(context.owner) {
                     let player = match player {
                         PlayerId::Player1 => &mut state.player_1,
                         PlayerId::Player2 => &mut state.player_2,
@@ -368,13 +484,32 @@ impl CardBehaviorAction {
                 }
                 CardBehaviorResult::Ok
             }
-            CardBehaviorAction::Replace { target, replacement } => todo!(),
+            CardBehaviorAction::Replace { target, replacement } => {
+                let target = target.evaluate(&context)?;
+                let card_instance =  state.resources.card_instances.get(&target).context("Tried to replace a card that does not exist")?;
+                let location = card_instance.location;
+                let owner = card_instance.owner;
+
+                let queue = state.resources.destroy_card(&mut state.board, target, communicator).await?;
+                cards::card_behaviors::trigger_all_card_behaviors(queue, owner, state, communicator).await?;
+                let queue = state.resources.create_card(&replacement, location, owner, communicator).await?;
+                cards::card_behaviors::trigger_all_card_behaviors(queue, owner, state, communicator).await?;
+
+                CardBehaviorResult::Ok
+            },
             CardBehaviorAction::AddTypes { target, types } => todo!(),
             CardBehaviorAction::ModifyAttack { target, amount } => todo!(),
             CardBehaviorAction::ModifyHealth { target, amount } => todo!(),
             CardBehaviorAction::ModifyDefense { target, amount } => todo!(),
             CardBehaviorAction::ModifyCost { target, amount } => todo!(),
-            CardBehaviorAction::Destroy { target } => todo!(),
+            CardBehaviorAction::Destroy { target } => {
+                if let Ok(cards) = target.evaluate(context, state) {
+                    for card in cards {
+                        state.resources.destroy_card(&mut state.board, card, communicator).await?;
+                    }
+                }
+                CardBehaviorResult::Ok
+            }
             CardBehaviorAction::Summon { target, card } => todo!(),
 
             CardBehaviorAction::GiveAllTypes { .. } => todo!(),

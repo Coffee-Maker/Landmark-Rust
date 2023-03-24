@@ -8,6 +8,7 @@ pub trait Location {
     fn add_card(&mut self, card: CardInstanceId) -> Result<()>;
     fn remove_card(&mut self, card: CardInstanceId);
     fn clear(&mut self);
+    fn shuffle(&mut self);
     
     fn contains(&self, card: CardInstanceId) -> bool;
     
