@@ -10,10 +10,12 @@ use walkdir::WalkDir;
 use crate::game::board::Board;
 
 use crate::game::cards::card_deserialization::{Card, CardBehavior};
+use crate::game::game_communicator::GameCommunicator;
+use crate::game::game_state::{CardBehaviorTriggerQueue, GameState};
 use crate::game::id_types::{CardInstanceId, LocationId, PlayerId, ServerInstanceId};
 use crate::game::state_resources::StateResources;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CardInstance {
     pub card: &'static Card,
     pub owner: PlayerId,
@@ -21,15 +23,30 @@ pub struct CardInstance {
     pub instance_id: CardInstanceId,
     pub behaviors: Vec<CardBehavior>,
     pub cost: u32,
-    pub stats: UnitStats,
+    pub base_stats: UnitStats,
+    pub current_stats: UnitStats,
     pub card_types: Vec<String>,
+    pub hidden: bool,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct UnitStats {
     pub health: i32,
     pub defense: i32,
     pub attack: i32,
+}
+
+impl UnitStats {
+    pub fn process_damage(&mut self, amount: i32) {
+        self.defense -= amount;
+        if self.defense <= 0 {
+            self.health += self.defense;
+            if self.health <= 0 {
+                self.health = 0;
+            }
+            self.defense = 0;
+        }
+    }
 }
 
 impl CardInstance {

@@ -102,7 +102,8 @@ impl Player {
 
         match card {
             None => {
-                todo!("lose instantly")
+                communicator.send_game_instruction(InstructionToClient::EndGame { winner: self.id.opponent() }).await?;
+                return Err(eyre!("Ran out of cards, game concluded"))
             }
             Some(card_key) => {
                 resources.move_card(card_key, self.hand, self.id, None, communicator).await?;

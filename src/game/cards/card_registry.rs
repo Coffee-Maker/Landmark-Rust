@@ -10,7 +10,7 @@ use crate::game::cards::card_instance::{CardInstance, UnitStats};
 use crate::game::id_types::{CardInstanceId, LocationId, PlayerId};
 
 pub struct CardRegistry {
-    card_registry: HashMap<String, &'static Card>,
+    pub card_registry: HashMap<String, &'static Card>,
 }
 
 impl CardRegistry {
@@ -68,8 +68,14 @@ impl CardRegistry {
             instance_id,
             behaviors: card.behaviors.clone(),
             cost: card.cost,
-            stats: UnitStats { health, defense, attack },
+            base_stats: UnitStats { health, defense, attack },
+            current_stats: UnitStats { health, defense, attack },
             card_types: card.types.clone(),
+            hidden: true
         })
+    }
+
+    pub fn get_data(&self, id: &str) -> Result<&Card> {
+        Ok(*self.card_registry.get(id).context(eyre!("Card not found: {}", id))?)
     }
 }

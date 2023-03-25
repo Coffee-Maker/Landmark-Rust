@@ -4,30 +4,30 @@ cost = 1
 types = ["specter", "mystical"]
 health = 2
 
-[[behavior]]
-    [[behavior.trigger]]
-    when = "this:has_been_summoned"
-
-    [[behavior.action]]
-    then = "set_counter"
-    with = { target = "this", counter = "spectral_transition", value = 3 }
-
-[[behavior]]
-    name = "Become not fetus"
-    description = "After this {{keyword:unit}} has been deployed for 3 of your turns, replace this {{keyword:unit}} with a {{card:phantom}}."
-
-    [[behavior.trigger]]
-    when = "owner:turn_started"
-
-    [[behavior.action]]
-    then = "modify_counter"
-    with = { target = "this", counter = "spectral_transition", amount = -1 }
-
-[[behavior]]
-    [[behavior.trigger]]
-    when = "owner:turn_started"
-    #and = { check = "counter_equals", with = { target = "this", counter = "spectral_transition", value = 0 } }
-
-    [[behavior.action]]
-    then = "create_card"
-    with = { location = "owner_hand", id = "phantom" }
+#[[behavior]]
+#    [[behavior.trigger]]
+#    when = "this:has_been_summoned"
+#
+#    [[behavior.action]]
+#    then = "set_counter"
+#    with = { target = "this", counter = "spectral_transition", value = 3 }
+#
+#[[behavior]]
+#    name = "Become not fetus"
+#    description = "After this {{keyword:unit}} has been deployed for 3 of your turns, replace this {{keyword:unit}} with a {{card:phantom}}."
+#
+#    [[behavior.trigger]]
+#    when = "owner:turn_started"
+#
+#    [[behavior.action]]
+#    then = "modify_counter"
+#    with = { target = "this", counter = "spectral_transition", amount = -1 }
+#
+#[[behavior]]
+#    [[behavior.trigger]]
+#    when = "owner:turn_started"
+#    #and = { check = "counter_equals", with = { target = "this", counter = "spectral_transition", value = 0 } }
+#
+#    [[behavior.action]]
+#    then = "create_card"
+#    with = { location = "owner_hand", id = "phantom" }

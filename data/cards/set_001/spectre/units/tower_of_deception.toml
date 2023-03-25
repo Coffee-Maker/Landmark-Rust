@@ -6,16 +6,16 @@ attack = 0
 health = 10
 defense = 6
 
-[[behavior]]
-    name = "Shadow"
-    description = "Units summoned adjacent to this one gain Hidden"
-    [[behavior.trigger]]
-    when = "owned:has_been_summoned"
-#    and = [
-#        { check = "not_equal", with = { target = "context", compare_to = "target" } },
-#        { check = "adjacent", with = { target = "context", adjacent_to = "this" } } # Not sure what to do for target here
-#    ] # or maybe: context.card
-
-    [[behavior.action]]
-    then = "add_behavior"
-    with = { target = { context = { context_key = "summoned_unit" }}, behavior = "generic.hidden" }
+#[[behavior]]
+#    name = "Shadow"
+#    description = "Units summoned adjacent to this one gain Hidden"
+#    [[behavior.trigger]]
+#    when = "owned:has_been_summoned"
+##    and = [
+##        { check = "not_equal", with = { target = "context", compare_to = "target" } },
+##        { check = "adjacent", with = { target = "context", adjacent_to = "this" } } # Not sure what to do for target here
+##    ] # or maybe: context.card
+#
+#    [[behavior.action]]
+#    then = "add_behavior"
+#    with = { target = { context = { context_key = "summoned_unit" }}, behavior = "generic.hidden" }

@@ -56,6 +56,7 @@ impl GameCommunicator {
     }
 
     pub async fn send_raw(&mut self, msg: &str) -> Result<()> {
+        println!("{} {}: {}", "(Server)".style(self.server_style), "Raw".color(Rgb(80, 150, 120)), msg.color(Rgb(120, 120, 120)));
         self.websocket.send(Message::Text(msg.into())).await?;
         Ok(())
     }

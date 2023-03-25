@@ -27,7 +27,11 @@ impl CardBehaviorContext {
     pub fn get(&self, key: &str) -> Option<&ContextValue> {
         self.values.get(key)
     }
-    
+
+    pub fn get_mut(&mut self, key: &str) -> Option<&mut ContextValue> {
+        self.values.get_mut(key)
+    }
+
     pub fn contains_key(&self, key: &str) -> bool {
         self.values.contains_key(key)
     }

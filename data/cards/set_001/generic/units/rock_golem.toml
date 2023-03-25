@@ -3,8 +3,8 @@ name = "Rock Golem"
 cost = 5
 types = ["golem"]
 attack = 5
-health = 6
-defense = 6
+health = 5
+defense = 5
 
 #[[behaviour]]
 #description = "When this Unit enters the Field, it gains Protected for 2 Turns."

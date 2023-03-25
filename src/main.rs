@@ -3,15 +3,22 @@
 
 use std::fs;
 use color_eyre::eyre::{eyre, Result};
+use once_cell::sync::Lazy;
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Mutex;
 use tokio_tungstenite::tungstenite::handshake::server::Request;
 use tokio_tungstenite::tungstenite::handshake::server::Response;
 
 use game::game_state;
 use crate::game::cards::card_deserialization::{Card, CardBehaviorTriggerWhenActivator};
+use crate::game::cards::card_registry::CardRegistry;
 
 mod game;
 mod card_finder;
+
+pub static CARD_REGISTRY: Lazy<Mutex<CardRegistry>> = Lazy::new(|| {
+    Mutex::new(CardRegistry::from_directory("data/cards").unwrap())
+});
 
 #[tokio::main]
 async fn main() -> Result<()> {

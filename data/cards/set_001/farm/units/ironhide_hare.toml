@@ -1,0 +1,20 @@
+﻿category = "unit"
+name = "Ironhide Hare"
+description = "<i>Swift as a bunny, strong as steel, Ironhide Hare refuses to yield!</i>"
+cost = 3
+types = ["creature"]
+attack = 0
+health = 6
+defense = 4
+
+[[behavior]]
+name = "Fortify"
+description = "When an adjacent unit is targeted for attack, redirect the attack to this unit instead."
+
+    [[behavior.trigger]]
+    when = "owned:will_be_attacked"
+    and = { check = "adjacent_to", with = { source = { context = { key = "target" } }, target = "this" } }
+
+    [[behavior.action]]
+    then = "redirect_target"
+    with = { new_target = "this" }

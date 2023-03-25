@@ -4,7 +4,6 @@ cost = 1
 types = ["Water"]
 attack = 1
 health = 1
-defense = 0
 
 [[behavior]]
     name = "Conglomerate"

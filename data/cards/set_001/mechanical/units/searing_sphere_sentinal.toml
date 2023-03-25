@@ -1,0 +1,30 @@
+﻿category = "unit"
+name = "Searing Sphere Sentinal"
+cost = 4
+types = ["mechanical"]
+attack = 2
+health = 1
+defense = 3
+
+[[behavior]]
+name = "Spare Parts"
+description = "When this Unit is summoned, draw a card"
+
+    [[behavior.trigger]]
+    when = "this:has_been_summoned"
+
+    [[behavior.action]]
+    then = "draw_card"
+    with = { target = "owner" }
+
+[[behavior]]
+name = "Self Destruct"
+description = "When this Unit is destroyed, deal 1 damage to your opponent's Hero"
+
+    [[behavior.trigger]]
+    when = "this:has_been_destroyed"
+
+    [[behavior.action]]
+    then = "damage_hero"
+    with = { target = "opponent", amount = 1 }
+

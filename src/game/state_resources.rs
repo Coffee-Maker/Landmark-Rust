@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 
-use color_eyre::eyre::{Context, ContextCompat};
+use color_eyre::eyre::{Context, ContextCompat, eyre};
 use color_eyre::Result;
+use crate::CARD_REGISTRY;
 use crate::game::animation_presets::AnimationPreset;
 
 use crate::game::board::Board;
 use crate::game::cards;
-use crate::game::cards::card_deserialization::{CardBehavior, CardBehaviorAction, CardBehaviorTriggerWhenName};
+use crate::game::cards::card_deserialization::{CardBehavior, CardBehaviorAction, CardBehaviorTriggerWhenName, CardCategory};
 use crate::game::cards::card_instance::CardInstance;
 use crate::game::game_communicator::GameCommunicator;
-use crate::game::game_state::{CARD_REGISTRY, CardBehaviorTriggerQueue};
+use crate::game::game_state::{CardBehaviorTriggerQueue};
 use crate::game::id_types::{CardInstanceId, location_ids, LocationId, PlayerId, ServerInstanceId};
 use crate::game::instruction::InstructionToClient;
 use crate::game::location::Location;
@@ -124,10 +125,14 @@ impl StateResources {
         }
 
         if old_location.is_field() == false && new_location.is_field() {
+            card_instance.hidden = false;
             trigger_queue.push_back((CardBehaviorTriggerWhenName::HasBeenSummoned, context.clone()));
             let mut context = CardBehaviorContext::new(move_owner);
             context.insert("card_instance", ContextValue::CardInstance(card_instance_id));
             trigger_queue.push_back((CardBehaviorTriggerWhenName::HasEnteredLandscape, context));
+            if card_instance.hidden == false {
+                communicator.send_game_instruction(InstructionToClient::Reveal { card: card_instance_id }).await?;
+            }
         }
 
         Ok(trigger_queue)
@@ -173,8 +178,12 @@ impl StateResources {
         Ok(queue)
     }
 
-    pub async fn destroy_card(&mut self, board: &mut Board, card: CardInstanceId, communicator: &mut GameCommunicator) -> Result<CardBehaviorTriggerQueue> {
+    pub async fn destroy_card(&mut self, card: CardInstanceId, communicator: &mut GameCommunicator) -> Result<CardBehaviorTriggerQueue> {
         let card_instance = self.card_instances.get(&card).unwrap();
+        if matches!(card_instance.card.card_category, CardCategory::Hero { .. }) {
+            communicator.send_game_instruction(InstructionToClient::EndGame { winner: card_instance.owner.opponent() }).await?;
+            return Err(eyre!("Game has concluded"))
+        }
         self.move_card(card, location_ids::player_graveyard_location_id(card_instance.owner), card_instance.owner, Some(AnimationPreset::EaseInOut), communicator).await
     }
 }

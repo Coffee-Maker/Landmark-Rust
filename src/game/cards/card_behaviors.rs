@@ -20,13 +20,13 @@ pub enum CardBehaviorResult {
 pub async fn trigger_all_card_behaviors(mut queue: CardBehaviorTriggerQueue, trigger_owner: PlayerId, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<CardBehaviorResult> {
     let mut final_result = CardBehaviorResult::Ok;
 
-    while let Some((trigger_when, trigger_context)) = queue.pop_front() {
+    while let Some((trigger_when, mut trigger_context)) = queue.pop_front() {
         for (card_instance_id, _) in state.resources.card_instances.clone() {
             let (mut trigger_queue, result) = trigger_card_behaviors(
                 card_instance_id,
                 trigger_context.owner.clone(),
                 trigger_when.clone(),
-                &trigger_context,
+                &mut trigger_context,
                 state,
                 communicator
             ).await?;
@@ -41,7 +41,7 @@ pub async fn trigger_all_card_behaviors(mut queue: CardBehaviorTriggerQueue, tri
     Ok(final_result)
 }
 
-pub async fn trigger_card_behaviors(card_instance_id: CardInstanceId, trigger_owner: PlayerId, trigger_name: CardBehaviorTriggerWhenName, context: &CardBehaviorContext, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<(CardBehaviorTriggerQueue, CardBehaviorResult)> {
+pub async fn trigger_card_behaviors(card_instance_id: CardInstanceId, trigger_owner: PlayerId, trigger_name: CardBehaviorTriggerWhenName, context: &mut CardBehaviorContext, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<(CardBehaviorTriggerQueue, CardBehaviorResult)> {
     let card = state.resources.card_instances.get(&card_instance_id).context(format!("Tried to process behaviors for card that does not exist: {}", card_instance_id))?;
 
     let is_owned = card.owner == trigger_owner;
@@ -82,7 +82,8 @@ pub async fn trigger_card_behaviors(card_instance_id: CardInstanceId, trigger_ow
 
         if successful_triggers.len() > 0 {
             for action in &behavior.actions {
-                let (mut new_queue, result) = action.run(&context, state, communicator).await?;
+
+                let (mut new_queue, result) = action.run(context, state, communicator).await?;
                 queue.append(&mut new_queue);
                 final_result = match result {
                     CardBehaviorResult::Ok => final_result,

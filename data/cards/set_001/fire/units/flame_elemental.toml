@@ -1,0 +1,18 @@
+﻿category = "unit"
+name = "Flame Elemental"
+description = "A blazing elemental born from the scorching fires of the underworld"
+cost = 3
+types = ["fire"]
+attack = 2
+health = 4
+
+[[behavior]]
+name = "Flameburst"
+description = "When Flame Elemental attacks, deal 1 damage to all enemy units adjacent to the target"
+
+    [[behavior.trigger]]
+    when = "this:has_attacked"
+
+    [[behavior.action]]
+    then = "damage_unit"
+    with = { target = { find = { filter = { adjacent_to = { context = { key = "target" } } } } }, amount = 1 }

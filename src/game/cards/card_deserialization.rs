@@ -15,11 +15,12 @@ use crate::game::game_communicator::GameCommunicator;
 use crate::game::game_state::{CardBehaviorTriggerQueue, CardBehaviorTriggerWithContext, GameState};
 use crate::game::id_types::{CardInstanceId, location_ids, PlayerId};
 use crate::game::id_types::PlayerId::{Player1, Player2};
+use crate::game::instruction::InstructionToClient;
 use crate::game::player::Player;
 use crate::game::state_resources::StateResources;
 use crate::game::trigger_context::CardBehaviorContext;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct Card {
     #[serde(skip_deserializing)] pub id: String,
     pub name: String,
@@ -50,7 +51,7 @@ impl SlotPosition {
     }
 }
 
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "snake_case", tag = "category")]
 pub enum CardCategory {
     Hero {
@@ -187,6 +188,10 @@ pub enum CardBehaviorTriggerAnd {
         filter: CardFilter,
         condition: CountCondition,
         count: i32
+    },
+    AdjacentTo {
+        source: UnitTarget,
+        target: UnitTarget
     }
 }
 
@@ -236,6 +241,27 @@ impl CardBehaviorTriggerAnd {
                 filter.evaluate(&mut cards, &context, state);
                 condition.evaluate(cards.len() as i32, *count)
             }
+            CardBehaviorTriggerAnd::AdjacentTo { source, target } => {
+                let mut passed = false;
+                for source_id in source.evaluate(context, state)? {
+                    for target_id in target.evaluate(context, state)? {
+                        let source = state.resources.card_instances.get(&source_id).unwrap();
+                        let target = state.resources.card_instances.get(&target_id).unwrap();
+                        let source_slot = location_ids::get_slot_position(source.location, &state.board);
+                        let target_slot = location_ids::get_slot_position(target.location, &state.board);
+                        if let Ok(source_slot) = source_slot {
+                            if let Ok(target_slot) = target_slot {
+                                if source_slot.is_adjacent_to(target_slot) {
+                                    passed = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if passed { break; }
+                }
+                passed
+            }
         })
     }
 }
@@ -275,16 +301,30 @@ impl PlayerTarget {
 #[serde(rename_all = "snake_case")]
 pub enum UnitTarget {
     This,
-    Find, // Todo: Should use the same syntax as the trigger's "and" field
+    Find {
+        filter: Box<CardFilter>
+    },
     All,
+    Context {
+        key: String
+    }
 }
 
 impl UnitTarget {
-    pub fn evaluate(&self, context: &CardBehaviorContext) -> Result<CardInstanceId> {
+    pub fn evaluate(&self, context: &CardBehaviorContext, state: &GameState) -> Result<Vec<CardInstanceId>> {
         Ok(match self {
-            UnitTarget::This => context.get("card_instance").context("'this' was not a valid card target for this context")?.as_card_instance().context("'this' was not a card instance in context")?,
-            UnitTarget::Find { .. } => todo!(),
+            UnitTarget::This => vec!(context.get("card_instance").context("'this' was not a valid card target for this context")?.as_card_instance().context("'this' was not a card instance in context")?),
+            UnitTarget::Find { filter } => {
+                println!("Finding");
+                let mut cards = state.resources.card_instances.values().collect::<Vec<&CardInstance>>();
+                filter.evaluate(&mut cards, context, state)?;
+                cards.iter().map(|c| c.instance_id).collect::<Vec<CardInstanceId>>()
+            }
             UnitTarget::All => todo!(),
+            UnitTarget::Context { key } => {
+                let value = context.get(key).unwrap().as_card_instance().unwrap();
+                vec!(context.get(key).context("key was not a valid card target for this context")?.as_card_instance().context("key was not a card instance in context")?)
+            },
         })
     }
 }
@@ -352,7 +392,7 @@ impl CardFilter {
             cards.retain(|c| {
                 let position = location_ids::get_slot_position(c.location, &state.board);
                 if let Ok(position) = position {
-                    if let Ok(card_to_check) = adjacent_to.evaluate(context) {
+                    for card_to_check in adjacent_to.evaluate(context, state).unwrap() { // I don't know what to do here
                         let check_card_instance = state.resources.card_instances.get(&card_to_check);
                         if let Some(check_card_instance) = check_card_instance {
                             let check_slot_pos = location_ids::get_slot_position(check_card_instance.location, &state.board);
@@ -429,6 +469,17 @@ pub enum CardBehaviorAction {
     },
 
     // New
+    RedirectTarget {
+        new_target: UnitTarget,
+    },
+    DamageUnit {
+        target: UnitTarget,
+        amount: u32,
+    },
+    DamageHero {
+        target: PlayerTarget,
+        amount: u32,
+    },
     GiveAllTypes {
         target: CardTarget
     },
@@ -470,7 +521,7 @@ pub enum CardBehaviorAction {
 }
 
 impl CardBehaviorAction {
-    pub async fn run(&self, context: &CardBehaviorContext, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<(CardBehaviorTriggerQueue, CardBehaviorResult)> {
+    pub async fn run(&self, context: &mut CardBehaviorContext, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<(CardBehaviorTriggerQueue, CardBehaviorResult)> {
         let queue = CardBehaviorTriggerQueue::new();
 
         let result = match self {
@@ -485,15 +536,17 @@ impl CardBehaviorAction {
                 CardBehaviorResult::Ok
             }
             CardBehaviorAction::Replace { target, replacement } => {
-                let target = target.evaluate(&context)?;
-                let card_instance =  state.resources.card_instances.get(&target).context("Tried to replace a card that does not exist")?;
-                let location = card_instance.location;
-                let owner = card_instance.owner;
+                let target = target.evaluate(&context, state)?;
+                for card_instance_id in &target {
+                    let card_instance = state.resources.card_instances.get(card_instance_id).context("Tried to replace a card that does not exist")?;
+                    let location = card_instance.location;
+                    let owner = card_instance.owner;
 
-                let queue = state.resources.destroy_card(&mut state.board, target, communicator).await?;
-                cards::card_behaviors::trigger_all_card_behaviors(queue, owner, state, communicator).await?;
-                let queue = state.resources.create_card(&replacement, location, owner, communicator).await?;
-                cards::card_behaviors::trigger_all_card_behaviors(queue, owner, state, communicator).await?;
+                    let queue = state.resources.destroy_card(*card_instance_id, communicator).await?;
+                    cards::card_behaviors::trigger_all_card_behaviors(queue, owner, state, communicator).await?;
+                    let queue = state.resources.create_card(&replacement, location, owner, communicator).await?;
+                    cards::card_behaviors::trigger_all_card_behaviors(queue, owner, state, communicator).await?;
+                }
 
                 CardBehaviorResult::Ok
             },
@@ -505,7 +558,7 @@ impl CardBehaviorAction {
             CardBehaviorAction::Destroy { target } => {
                 if let Ok(cards) = target.evaluate(context, state) {
                     for card in cards {
-                        state.resources.destroy_card(&mut state.board, card, communicator).await?;
+                        state.resources.destroy_card(card, communicator).await?;
                     }
                 }
                 CardBehaviorResult::Ok
@@ -516,12 +569,33 @@ impl CardBehaviorAction {
             CardBehaviorAction::Cancel => CardBehaviorResult::Cancel,
             CardBehaviorAction::SelectUnit { .. } => todo!(),
             CardBehaviorAction::SaveContext { .. } => todo!(),
-            CardBehaviorAction::SumAttack { .. } => todo!(),
+            CardBehaviorAction::SumAttack { target, filter } => todo!(),
             CardBehaviorAction::AddBehavior { .. } => todo!(),
             CardBehaviorAction::RemoveBehavior { .. } => todo!(),
             CardBehaviorAction::SetCounter { .. } => todo!(),
             CardBehaviorAction::ModifyCounter { .. } => todo!(),
             CardBehaviorAction::CreateCard { .. } => todo!(),
+            CardBehaviorAction::DamageHero { target, amount } => {
+                for target in target.evaluate(context.owner) {
+                    state.deal_effect_damage(state.get_player(target).hero, *amount as i32, communicator);
+                }
+                CardBehaviorResult::Ok
+            },
+            CardBehaviorAction::DamageUnit { target, amount } => {
+                for card_instance_id in target.evaluate(context, state)? {
+                    state.deal_effect_damage(card_instance_id, *amount as i32, communicator).await?;
+                }
+                CardBehaviorResult::Ok
+            },
+            CardBehaviorAction::RedirectTarget { new_target } => {
+                let new_target = new_target.evaluate(context, state)?;
+                let new_target = new_target.first();
+                if let Some(new_target) = new_target {
+                    context.get_mut(&"target").context("Tried to redirect target when the context holds no target")?.as_card_instance().unwrap();
+                    todo!();
+                }
+                CardBehaviorResult::Ok
+            }
         };
 
         Ok((queue, result))
