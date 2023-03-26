@@ -20,7 +20,7 @@ slots = [
 
     [[behavior.trigger]]
     when = "owned:has_been_summoned"
-    and = { check = "type_contains", with = { target = { context = { context_key = "card_instance" } }, types = ["animal"] } }
+    and = { check = "type_contains", with = { target = { context = { context_key = "card_instance" } }, types = ["creature"] } }
 
     [[behavior.action]]
     then = "draw_card"

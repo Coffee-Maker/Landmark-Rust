@@ -10,7 +10,7 @@ use crate::game::cards;
 use crate::game::cards::card_deserialization::{CardBehavior, CardBehaviorAction, CardBehaviorTriggerWhenName, CardCategory};
 use crate::game::cards::card_instance::CardInstance;
 use crate::game::game_communicator::GameCommunicator;
-use crate::game::game_state::{CardBehaviorTriggerQueue};
+use crate::game::game_state::{CardBehaviorTriggerQueue, CardBehaviorTriggerWithContext};
 use crate::game::id_types::{CardInstanceId, location_ids, LocationId, PlayerId, ServerInstanceId};
 use crate::game::instruction::InstructionToClient;
 use crate::game::location::Location;
@@ -184,6 +184,10 @@ impl StateResources {
             communicator.send_game_instruction(InstructionToClient::EndGame { winner: card_instance.owner.opponent() }).await?;
             return Err(eyre!("Game has concluded"))
         }
-        self.move_card(card, location_ids::player_graveyard_location_id(card_instance.owner), card_instance.owner, Some(AnimationPreset::EaseInOut), communicator).await
+        let mut context = CardBehaviorContext::new(card_instance.owner);
+        let mut queue = self.move_card(card, location_ids::player_graveyard_location_id(card_instance.owner), card_instance.owner, Some(AnimationPreset::EaseInOut), communicator).await?;
+        context.insert("card_instance", ContextValue::CardInstance(card));
+        queue.push_back((CardBehaviorTriggerWhenName::HasBeenDestroyed, context));
+        Ok(queue)
     }
 }

@@ -521,7 +521,7 @@ pub enum CardBehaviorAction {
 }
 
 impl CardBehaviorAction {
-    pub async fn run(&self, context: &mut CardBehaviorContext, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<(CardBehaviorTriggerQueue, CardBehaviorResult)> {
+    pub async fn run(&self, context: &CardBehaviorContext, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<(CardBehaviorTriggerQueue, CardBehaviorResult)> {
         let queue = CardBehaviorTriggerQueue::new();
 
         let result = match self {
@@ -533,7 +533,7 @@ impl CardBehaviorAction {
                     };
                     player.draw_card(&mut state.resources, communicator).await?;
                 }
-                CardBehaviorResult::Ok
+                CardBehaviorResult::Ok(CardBehaviorContext::new(context.owner))
             }
             CardBehaviorAction::Replace { target, replacement } => {
                 let target = target.evaluate(&context, state)?;
@@ -548,7 +548,7 @@ impl CardBehaviorAction {
                     cards::card_behaviors::trigger_all_card_behaviors(queue, owner, state, communicator).await?;
                 }
 
-                CardBehaviorResult::Ok
+                CardBehaviorResult::Ok(CardBehaviorContext::new(context.owner))
             },
             CardBehaviorAction::AddTypes { target, types } => todo!(),
             CardBehaviorAction::ModifyAttack { target, amount } => todo!(),
@@ -561,7 +561,7 @@ impl CardBehaviorAction {
                         state.resources.destroy_card(card, communicator).await?;
                     }
                 }
-                CardBehaviorResult::Ok
+                CardBehaviorResult::Ok(CardBehaviorContext::new(context.owner))
             }
             CardBehaviorAction::Summon { target, card } => todo!(),
 
@@ -577,24 +577,23 @@ impl CardBehaviorAction {
             CardBehaviorAction::CreateCard { .. } => todo!(),
             CardBehaviorAction::DamageHero { target, amount } => {
                 for target in target.evaluate(context.owner) {
-                    state.deal_effect_damage(state.get_player(target).hero, *amount as i32, communicator);
+                    state.deal_effect_damage(state.get_player(target).hero, *amount as i32, communicator).await?;
                 }
-                CardBehaviorResult::Ok
+                CardBehaviorResult::Ok(CardBehaviorContext::new(context.owner))
             },
             CardBehaviorAction::DamageUnit { target, amount } => {
                 for card_instance_id in target.evaluate(context, state)? {
                     state.deal_effect_damage(card_instance_id, *amount as i32, communicator).await?;
                 }
-                CardBehaviorResult::Ok
+                CardBehaviorResult::Ok(CardBehaviorContext::new(context.owner))
             },
             CardBehaviorAction::RedirectTarget { new_target } => {
                 let new_target = new_target.evaluate(context, state)?;
                 let new_target = new_target.first();
                 if let Some(new_target) = new_target {
-                    context.get_mut(&"target").context("Tried to redirect target when the context holds no target")?.as_card_instance().unwrap();
                     todo!();
                 }
-                CardBehaviorResult::Ok
+                CardBehaviorResult::Ok(CardBehaviorContext::new(context.owner))
             }
         };
 

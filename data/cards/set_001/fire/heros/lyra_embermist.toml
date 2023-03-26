@@ -1,0 +1,16 @@
+name = "Lyra Embermist, the Flame Assassin"
+description = "Lyra Embermist strikes fear into her enemies with deadly precision. Her fiery nature unleashes unpredictable and devastating attacks, leaving her foes reduced to ashes. As a true assassin, she moves with lightning speed and strikes with deadly intent, leaving no one safe from her flames."
+health = 15
+defense = 0
+types = ["fire"]
+
+[[behavior]]
+name = "Assassinate"
+description = "At the start of your turn, Lyra targets a random non-fire type unit on the field and deals 2 damage to it."
+
+    [[behavior.trigger]]
+    when = "owner:turn_started"
+
+    [[behavior.action]]
+    then = "deal_damage"
+    with = { target = { random = { filter = { type_not_contains = ["fire"] }, amount = 1 } }, amount = 2 }

@@ -6,10 +6,10 @@ use crate::game::id_types::{CardInstanceId, PlayerId};
 use crate::game::player::Player;
 use crate::game::state_resources::StateResources;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct CardBehaviorContext {
     pub owner: PlayerId,
-    values: HashMap<String, ContextValue>,
+    pub values: HashMap<String, ContextValue>,
 }
 
 impl CardBehaviorContext {
@@ -35,9 +35,15 @@ impl CardBehaviorContext {
     pub fn contains_key(&self, key: &str) -> bool {
         self.values.contains_key(key)
     }
+
+    pub fn append(&mut self, other: &CardBehaviorContext) {
+        for (key, value) in &other.values {
+            self.insert(&key, value.clone());
+        }
+    }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum ContextValue {
     String(String),
     U64(u64),

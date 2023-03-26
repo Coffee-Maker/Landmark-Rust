@@ -414,7 +414,7 @@ impl GameState {
 
         let result = card_behaviors::trigger_all_card_behaviors(queue, self.current_turn, self, communicator).await?;
         match result {
-            CardBehaviorResult::Ok => {}
+            CardBehaviorResult::Ok(..) => {}
             CardBehaviorResult::Cancel => return Ok(None)
         }
 
