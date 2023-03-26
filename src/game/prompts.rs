@@ -5,14 +5,15 @@ use color_eyre::Result;
 
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::game_state::GameState;
-use crate::game::id_types::{CardInstanceId, LocationId, PlayerId, PromptInstanceId};
+use crate::game::id_types::{TokenInstanceId, LocationId, PlayerId, PromptInstanceId};
 use crate::game::instruction::InstructionToClient;
 use crate::game::tag::get_tag;
+use crate::game::trigger_context::GameContext;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PromptType {
-    SelectCard(CardInstanceId),
-    AttackCard(CardInstanceId),
+    SelectCard(TokenInstanceId),
+    AttackCard(TokenInstanceId),
     SelectFieldSlot(LocationId),
 }
 
@@ -54,6 +55,7 @@ pub struct PromptCallback {
     pub cancelable: bool,
     closure: PromptCallbackClosure,
     prompt_instances: HashMap<PromptInstanceId, PromptProfile>,
+    pub context: GameContext
 }
 
 impl PromptCallback {
@@ -62,6 +64,7 @@ impl PromptCallback {
             cancelable,
             closure,
             prompt_instances: HashMap::new(),
+            context: GameContext::new()
         }
     }
 

@@ -2,21 +2,19 @@
 
 use crate::game::board::Board;
 use crate::game::cards::card_deserialization::Card;
-use crate::game::id_types::{CardInstanceId, PlayerId};
+use crate::game::id_types::{TokenInstanceId, PlayerId, LocationId};
 use crate::game::player::Player;
 use crate::game::state_resources::StateResources;
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct CardBehaviorContext {
-    pub owner: PlayerId,
+pub struct GameContext {
     pub values: HashMap<String, ContextValue>,
 }
 
-impl CardBehaviorContext {
-    pub fn new(owner: PlayerId) -> Self {
+impl GameContext {
+    pub fn new() -> Self {
         Self {
             values: HashMap::new(),
-            owner,
         }
     }
     
@@ -36,7 +34,7 @@ impl CardBehaviorContext {
         self.values.contains_key(key)
     }
 
-    pub fn append(&mut self, other: &CardBehaviorContext) {
+    pub fn append(&mut self, other: &GameContext) {
         for (key, value) in &other.values {
             self.insert(&key, value.clone());
         }
@@ -50,7 +48,8 @@ pub enum ContextValue {
     I64(i64),
     F64(f64),
     Bool(bool),
-    CardInstance(CardInstanceId),
+    TokenInstanceId(TokenInstanceId),
+    LocationId(LocationId),
     Array(Vec<ContextValue>),
 }
 
@@ -97,9 +96,9 @@ impl ContextValue {
         }
     }
 
-    pub fn as_card_instance(&self) -> Option<CardInstanceId> {
+    pub fn as_card_instance(&self) -> Option<TokenInstanceId> {
         match self {
-            ContextValue::CardInstance(c) => Some(*c),
+            ContextValue::TokenInstanceId(c) => Some(*c),
             _ => None,
         }
     }

@@ -9,7 +9,7 @@ use tokio_tungstenite::WebSocketStream;
 
 use crate::game::cards::card_deserialization::{CardBehavior, CardBehaviorTriggerWhenName};
 use crate::game::game_state::GameState;
-use crate::game::id_types::{CardInstanceId, PlayerId, PromptInstanceId, ServerInstanceId};
+use crate::game::id_types::{TokenInstanceId, PlayerId, PromptInstanceId, ServerInstanceId};
 use crate::game::instruction::InstructionToClient;
 
 pub struct GameCommunicator {

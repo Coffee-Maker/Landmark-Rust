@@ -4,7 +4,7 @@ use crate::game::cards::card_deserialization::{Card, CardCategory};
 
 use crate::game::cards::card_instance::CardInstance;
 use crate::game::prompts::PromptType;
-use crate::game::id_types::{CardInstanceId, LocationId, PlayerId, PromptInstanceId, ServerInstanceId};
+use crate::game::id_types::{TokenInstanceId, LocationId, PlayerId, PromptInstanceId, ServerInstanceId};
 
 pub enum Tag {
     Player(PlayerId),
@@ -15,7 +15,7 @@ pub enum Tag {
     CardData(Card),
     CardBehaviors(CardInstance),
     ServerInstanceId(ServerInstanceId),
-    CardInstanceId(CardInstanceId),
+    CardInstanceId(TokenInstanceId),
     LocationId(LocationId),
     PromptInstanceId(PromptInstanceId),
     PromptType(PromptType),

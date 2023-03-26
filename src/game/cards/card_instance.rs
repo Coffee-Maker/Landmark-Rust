@@ -12,7 +12,7 @@ use crate::game::board::Board;
 use crate::game::cards::card_deserialization::{Card, CardBehavior};
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::game_state::{CardBehaviorTriggerQueue, GameState};
-use crate::game::id_types::{CardInstanceId, LocationId, PlayerId, ServerInstanceId};
+use crate::game::id_types::{TokenInstanceId, LocationId, PlayerId, ServerInstanceId};
 use crate::game::state_resources::StateResources;
 
 #[derive(Clone, Debug)]
@@ -20,7 +20,7 @@ pub struct CardInstance {
     pub card: &'static Card,
     pub owner: PlayerId,
     pub location: LocationId,
-    pub instance_id: CardInstanceId,
+    pub instance_id: TokenInstanceId,
     pub behaviors: Vec<CardBehavior>,
     pub cost: u32,
     pub base_stats: UnitStats,

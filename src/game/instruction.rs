@@ -5,7 +5,7 @@ use crate::game::animation_presets::AnimationPreset;
 use crate::game::cards::card_instance::CardInstance;
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::game_state::GameState;
-use crate::game::id_types::{CardInstanceId, LocationId, PlayerId, PromptInstanceId, ServerInstanceId};
+use crate::game::id_types::{TokenInstanceId, LocationId, PlayerId, PromptInstanceId, ServerInstanceId};
 use crate::game::player::Player;
 use crate::game::prompts::PromptType;
 use crate::game::tag::Tag;
@@ -37,7 +37,7 @@ pub enum InstructionToClient {
         amount: u32,
     },
     MoveCard {
-        card: CardInstanceId,
+        card: TokenInstanceId,
         to: LocationId,
     },
     DrawCard {
@@ -45,7 +45,7 @@ pub enum InstructionToClient {
     },
     CreateCard {
         card_data: CardInstance,
-        instance_id: CardInstanceId,
+        instance_id: TokenInstanceId,
         location_id: LocationId,
         player_id: PlayerId,
     },
@@ -56,7 +56,7 @@ pub enum InstructionToClient {
         location: LocationId,
     },
     Destroy {
-        card: CardInstanceId,
+        card: TokenInstanceId,
     },
     AddPrompt {
         prompt_instance_id: PromptInstanceId,
@@ -72,13 +72,13 @@ pub enum InstructionToClient {
         card_data: CardInstance,
     },
     Animate {
-        card: CardInstanceId,
+        card: TokenInstanceId,
         location: LocationId,
         duration: f32,
         preset: AnimationPreset,
     },
     Reveal {
-        card: CardInstanceId,
+        card: TokenInstanceId,
     },
     EndGame {
         winner: PlayerId

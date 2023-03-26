@@ -5,7 +5,7 @@ use crate::game::board::Board;
 use crate::game::cards::card_deserialization::CardCategory;
 
 use crate::game::game_communicator::GameCommunicator;
-use crate::game::id_types::{CardInstanceId, LocationId, PlayerId};
+use crate::game::id_types::{TokenInstanceId, LocationId, PlayerId};
 use crate::game::instruction::InstructionToClient;
 use crate::game::state_resources::StateResources;
 
@@ -15,8 +15,8 @@ pub struct Player {
     pub id: PlayerId,
     pub deck: LocationId,
     pub hand: LocationId,
-    pub hero: CardInstanceId,
-    pub landscape: CardInstanceId,
+    pub hero: TokenInstanceId,
+    pub landscape: TokenInstanceId,
 }
 
 impl Player {
@@ -26,31 +26,35 @@ impl Player {
             thaum: 0,
             deck,
             hand,
-            hero: CardInstanceId(0),
-            landscape: CardInstanceId(0)
+            hero: TokenInstanceId(0),
+            landscape: TokenInstanceId(0)
         }
     }
 
-    pub async fn set_thaum(&mut self, thaum: u32, communicator: &mut GameCommunicator) -> Result<()> {
-        self.thaum = thaum;
+    pub async fn set_thaum(player_id: PlayerId, resources: &mut StateResources, thaum: u32, communicator: &mut GameCommunicator) -> Result<()> {
+        resources.get_player_mut(player_id).thaum = thaum;
 
         communicator.send_game_instruction(InstructionToClient::SetThaum {
-            player_id: self.id,
+            player_id,
             amount: thaum,
         }).await
     }
 
-    pub async fn populate_deck(&self, data: &str, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<()> {
+    pub async fn populate_deck(player_id: PlayerId, data: &str, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<()> {
+        let player = resources.get_player(player_id);
+        let player_deck = player.deck;
         for split in data.split(',') {
-            resources.create_card(split, self.deck, self.id, communicator).await?;
+            resources.create_card(split, player_deck, player_id, communicator).await?;
         }
 
         Ok(())
     }
     
-    pub async fn prepare_deck(&mut self, resources: &mut StateResources, board: &Board, communicator: &mut GameCommunicator) -> Result<()> {
+    pub async fn prepare_deck(player_id: PlayerId, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<()> {
+        let player_deck = resources.get_player(player_id).deck;
+
         // Find hero and landscape
-        let heroes = resources.locations.get(&self.deck).context("ya nan")?.get_cards().iter()
+        let heroes = resources.locations.get(&player_deck).context("ya nan")?.get_cards().iter()
             .filter_map(|&card_key| {
                 if let Some(card_instance) = resources.card_instances.get(&card_key) && matches!(card_instance.card.card_category, CardCategory::Hero { .. }){
                     Some(card_key)
@@ -63,15 +67,15 @@ impl Player {
         match heroes.len() {
             1 => {
                 let hero = *heroes.first().unwrap(); // We already checked that there is one item in the vector
-                self.hero = hero;
-                let hero_location = board.get_side(self.id).hero;
-                resources.move_card(hero, hero_location, self.id, None, communicator).await?;
+                resources.get_player_mut(player_id).hero = hero;
+                let hero_location = resources.board.get_side(player_id).hero;
+                resources.move_card(hero, hero_location, player_id, None, communicator).await?;
             }
             0 => return Err(eyre!("No hero found in deck")),
             _ => return Err(eyre!("Found more than one hero in deck")),
         }
 
-        let landscapes = resources.locations.get(&self.deck).context("ya nan")?.get_cards().iter()
+        let landscapes = resources.locations.get(&player_deck).context("ya nan")?.get_cards().iter()
             .filter_map(|&card_key| {
                 if let Some(card_instance) = resources.card_instances.get(&card_key) && matches!(card_instance.card.card_category, CardCategory::Landscape { .. }) {
                     Some(card_key)
@@ -84,29 +88,31 @@ impl Player {
         match landscapes.len() {
             1 => {
                 let landscape = *landscapes.first().unwrap(); // We already checked that there is one item in the vector
-                self.landscape = landscape;
-                let landscape_location = board.get_side(self.id).landscape;
-                resources.move_card(landscape, landscape_location, self.id, None, communicator).await?;
+                resources.get_player_mut(player_id).landscape = landscape;
+                let landscape_location = resources.board.get_side(player_id).landscape;
+                resources.move_card(landscape, landscape_location, player_id, None, communicator).await?;
             }
             0 => return Err(eyre!("No hero found in deck")),
             _ => return Err(eyre!("Found more than one hero in deck")),
         }
 
-        resources.locations.get_mut(&self.deck).context("Deck was not found")?.shuffle();
+        resources.locations.get_mut(&player_deck).context("Deck was not found")?.shuffle();
 
         Ok(())
     }
 
-    pub async fn draw_card(&self, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<()> {
-        let card = resources.locations.get(&self.deck).unwrap().get_card();
+    pub async fn draw_card(player_id: PlayerId, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<()> {
+        let player_deck = resources.get_player(player_id).deck;
+        let player_hand = resources.get_player(player_id).hand;
+        let card = resources.locations.get(&player_deck).unwrap().get_card();
 
         match card {
             None => {
-                communicator.send_game_instruction(InstructionToClient::EndGame { winner: self.id.opponent() }).await?;
+                communicator.send_game_instruction(InstructionToClient::EndGame { winner: player_id.opponent() }).await?;
                 return Err(eyre!("Ran out of cards, game concluded"))
             }
             Some(card_key) => {
-                resources.move_card(card_key, self.hand, self.id, None, communicator).await?;
+                resources.move_card(card_key, player_hand, player_id, None, communicator).await?;
             }
         }
 

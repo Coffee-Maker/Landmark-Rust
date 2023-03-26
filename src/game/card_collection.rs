@@ -1,10 +1,10 @@
 use color_eyre::Result;
 
-use crate::game::id_types::{CardInstanceId, LocationId, ServerInstanceId};
+use crate::game::id_types::{TokenInstanceId, LocationId, ServerInstanceId};
 use crate::game::location::Location;
 
 pub struct CardCollection {
-    pub cards: Vec<CardInstanceId>,
+    pub cards: Vec<TokenInstanceId>,
     pub location_id: LocationId,
 }
 
@@ -17,12 +17,12 @@ impl Location for CardCollection {
         self.location_id
     }
 
-    fn add_card(&mut self, card: CardInstanceId) -> Result<()> {
+    fn add_card(&mut self, card: TokenInstanceId) -> Result<()> {
         self.cards.push(card);
         Ok(())
     }
 
-    fn remove_card(&mut self, card: CardInstanceId) {
+    fn remove_card(&mut self, card: TokenInstanceId) {
         self.cards.retain(|c| &card != c);
     }
 
@@ -38,13 +38,13 @@ impl Location for CardCollection {
         self.cards = new_cards;
     }
 
-    fn contains(&self, card: CardInstanceId) -> bool { self.cards.contains(&card) }
+    fn contains(&self, card: TokenInstanceId) -> bool { self.cards.contains(&card) }
 
-    fn get_card(&self) -> Option<CardInstanceId> {
+    fn get_card(&self) -> Option<TokenInstanceId> {
         self.cards.first().map(|o| o.to_owned())
     }
 
-    fn get_cards(&self) -> Vec<CardInstanceId> {
+    fn get_cards(&self) -> Vec<TokenInstanceId> {
         self.cards.clone()
     }
 }

@@ -13,12 +13,12 @@ use crate::game::cards::card_behaviors::CardBehaviorResult;
 use crate::game::cards::card_instance::CardInstance;
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::game_state::{CardBehaviorTriggerQueue, CardBehaviorTriggerWithContext, GameState};
-use crate::game::id_types::{CardInstanceId, location_ids, PlayerId};
+use crate::game::id_types::{TokenInstanceId, location_ids, PlayerId};
 use crate::game::id_types::PlayerId::{Player1, Player2};
 use crate::game::instruction::InstructionToClient;
 use crate::game::player::Player;
 use crate::game::state_resources::StateResources;
-use crate::game::trigger_context::CardBehaviorContext;
+use crate::game::trigger_context::GameContext;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Card {
@@ -220,7 +220,7 @@ impl CountCondition {
 }
 
 impl CardBehaviorTriggerAnd {
-    pub async fn check(&self, context: &CardBehaviorContext, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<bool> {
+    pub async fn check(&self, context: &GameContext, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<bool> {
         Ok(match self {
             CardBehaviorTriggerAnd::TypeContains { target, types } => {
                 let targets = target.evaluate(context, state)?;
@@ -305,20 +305,23 @@ pub enum UnitTarget {
         filter: Box<CardFilter>
     },
     All,
+    Random {
+        target: Box<UnitTarget>,
+        amount: i32
+    },
     Context {
         key: String
     }
 }
 
 impl UnitTarget {
-    pub fn evaluate(&self, context: &CardBehaviorContext, state: &GameState) -> Result<Vec<CardInstanceId>> {
+    pub fn evaluate(&self, context: &GameContext, state: &GameState) -> Result<Vec<TokenInstanceId>> {
         Ok(match self {
             UnitTarget::This => vec!(context.get("card_instance").context("'this' was not a valid card target for this context")?.as_card_instance().context("'this' was not a card instance in context")?),
             UnitTarget::Find { filter } => {
-                println!("Finding");
                 let mut cards = state.resources.card_instances.values().collect::<Vec<&CardInstance>>();
                 filter.evaluate(&mut cards, context, state)?;
-                cards.iter().map(|c| c.instance_id).collect::<Vec<CardInstanceId>>()
+                cards.iter().map(|c| c.instance_id).collect::<Vec<TokenInstanceId>>()
             }
             UnitTarget::All => todo!(),
             UnitTarget::Context { key } => {
@@ -349,14 +352,14 @@ pub enum CardTarget {
 }
 
 impl CardTarget {
-    pub fn evaluate(&self, context: &CardBehaviorContext, state: &GameState) -> Result<Vec<CardInstanceId>> {
+    pub fn evaluate(&self, context: &GameContext, state: &GameState) -> Result<Vec<TokenInstanceId>> {
         Ok(match self {
             CardTarget::This => vec!(context.get("card_instance").context("'this' was not a valid card target for this context")?.as_card_instance().context("'this' was not a card instance in context")?),
             CardTarget::EquipTarget => todo!(),
             CardTarget::Find { filter } => {
                 let mut cards = state.resources.card_instances.values().collect::<Vec<&CardInstance>>();
                 filter.evaluate(&mut cards, context, state)?;
-                cards.iter().map(|c| c.instance_id).collect::<Vec<CardInstanceId>>()
+                cards.iter().map(|c| c.instance_id).collect::<Vec<TokenInstanceId>>()
             },
             CardTarget::Context { context_key } => vec!(context.get(context_key).context(format!("Context does not contain the key {context_key}"))?.as_card_instance().context(format!("Context value with key {context_key} was not a card instance"))?),
         })
@@ -383,7 +386,7 @@ pub struct CardFilter {
 }
 
 impl CardFilter {
-    pub fn evaluate(&self, cards: &mut Vec<&CardInstance>, context: &CardBehaviorContext, state: &GameState) -> Result<()> {
+    pub fn evaluate(&self, cards: &mut Vec<&CardInstance>, context: &GameContext, state: &GameState) -> Result<()> {
         if let Some(owned_by) = &self.owned_by {
             cards.retain(|c| owned_by.evaluate(context.owner).contains(&c.owner))
         }
@@ -521,7 +524,7 @@ pub enum CardBehaviorAction {
 }
 
 impl CardBehaviorAction {
-    pub async fn run(&self, context: &CardBehaviorContext, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<(CardBehaviorTriggerQueue, CardBehaviorResult)> {
+    pub async fn run(&self, context: &GameContext, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<(CardBehaviorTriggerQueue, CardBehaviorResult)> {
         let queue = CardBehaviorTriggerQueue::new();
 
         let result = match self {
@@ -533,7 +536,7 @@ impl CardBehaviorAction {
                     };
                     player.draw_card(&mut state.resources, communicator).await?;
                 }
-                CardBehaviorResult::Ok(CardBehaviorContext::new(context.owner))
+                CardBehaviorResult::Ok(GameContext::new(context.owner))
             }
             CardBehaviorAction::Replace { target, replacement } => {
                 let target = target.evaluate(&context, state)?;
@@ -548,7 +551,7 @@ impl CardBehaviorAction {
                     cards::card_behaviors::trigger_all_card_behaviors(queue, owner, state, communicator).await?;
                 }
 
-                CardBehaviorResult::Ok(CardBehaviorContext::new(context.owner))
+                CardBehaviorResult::Ok(GameContext::new(context.owner))
             },
             CardBehaviorAction::AddTypes { target, types } => todo!(),
             CardBehaviorAction::ModifyAttack { target, amount } => todo!(),
@@ -561,7 +564,7 @@ impl CardBehaviorAction {
                         state.resources.destroy_card(card, communicator).await?;
                     }
                 }
-                CardBehaviorResult::Ok(CardBehaviorContext::new(context.owner))
+                CardBehaviorResult::Ok(GameContext::new(context.owner))
             }
             CardBehaviorAction::Summon { target, card } => todo!(),
 
@@ -579,13 +582,13 @@ impl CardBehaviorAction {
                 for target in target.evaluate(context.owner) {
                     state.deal_effect_damage(state.get_player(target).hero, *amount as i32, communicator).await?;
                 }
-                CardBehaviorResult::Ok(CardBehaviorContext::new(context.owner))
+                CardBehaviorResult::Ok(GameContext::new(context.owner))
             },
             CardBehaviorAction::DamageUnit { target, amount } => {
                 for card_instance_id in target.evaluate(context, state)? {
                     state.deal_effect_damage(card_instance_id, *amount as i32, communicator).await?;
                 }
-                CardBehaviorResult::Ok(CardBehaviorContext::new(context.owner))
+                CardBehaviorResult::Ok(GameContext::new(context.owner))
             },
             CardBehaviorAction::RedirectTarget { new_target } => {
                 let new_target = new_target.evaluate(context, state)?;
@@ -593,7 +596,7 @@ impl CardBehaviorAction {
                 if let Some(new_target) = new_target {
                     todo!();
                 }
-                CardBehaviorResult::Ok(CardBehaviorContext::new(context.owner))
+                CardBehaviorResult::Ok(GameContext::new(context.owner))
             }
         };
 

@@ -13,3 +13,4 @@ pub mod prompts;
 pub mod state_resources;
 pub mod id_types;
 pub mod animation_presets;
+pub mod new_state_machine;

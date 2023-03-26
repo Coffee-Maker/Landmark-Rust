@@ -7,18 +7,17 @@ use color_eyre::Result;
 use crate::game::cards::card_deserialization::{CardBehaviorAction, CardBehaviorTriggerWhenActivator, CardBehaviorTriggerWhenName};
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::game_state::{CardBehaviorTriggerQueue, GameState};
-use crate::game::id_types::{CardInstanceId, PlayerId};
-use crate::game::trigger_context::CardBehaviorContext;
+use crate::game::id_types::{TokenInstanceId, PlayerId};
+use crate::game::trigger_context::GameContext;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum CardBehaviorResult {
-    Ok(CardBehaviorContext),
+    Ok(GameContext),
     Cancel,
 }
 
-#[async_recursion]
 pub async fn trigger_all_card_behaviors(mut queue: CardBehaviorTriggerQueue, trigger_owner: PlayerId, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<CardBehaviorResult> {
-    let mut final_result = CardBehaviorResult::Ok(CardBehaviorContext::new(trigger_owner));
+    let mut final_result = CardBehaviorResult::Ok(GameContext::new(trigger_owner));
 
     while let Some((trigger_when, trigger_context)) = queue.pop_front() {
         for (card_instance_id, _) in state.resources.card_instances.clone() {
@@ -41,7 +40,7 @@ pub async fn trigger_all_card_behaviors(mut queue: CardBehaviorTriggerQueue, tri
     Ok(final_result)
 }
 
-async fn trigger_card_behaviors(card_instance_id: CardInstanceId, trigger_owner: PlayerId, trigger_name: CardBehaviorTriggerWhenName, context: &CardBehaviorContext, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<(CardBehaviorTriggerQueue, CardBehaviorResult)> {
+async fn trigger_card_behaviors(card_instance_id: TokenInstanceId, trigger_owner: PlayerId, trigger_name: CardBehaviorTriggerWhenName, context: &GameContext, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<(CardBehaviorTriggerQueue, CardBehaviorResult)> {
     let card = state.resources.card_instances.get(&card_instance_id).context(format!("Tried to process behaviors for card that does not exist: {}", card_instance_id))?;
 
     let is_owned = card.owner == trigger_owner;
@@ -55,7 +54,7 @@ async fn trigger_card_behaviors(card_instance_id: CardInstanceId, trigger_owner:
 
     let mut queue = CardBehaviorTriggerQueue::new();
 
-    let mut final_result = CardBehaviorResult::Ok(CardBehaviorContext::new(trigger_owner));
+    let mut final_result = CardBehaviorResult::Ok(GameContext::new(trigger_owner));
 
     for behavior in &card.behaviors.clone() { // Todo: Is clone required here? I assume so. Ask Marc
         // Check if a trigger passed

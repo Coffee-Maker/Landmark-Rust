@@ -7,7 +7,7 @@ use walkdir::WalkDir;
 
 use crate::game::cards::card_deserialization::{Card, CardCategory};
 use crate::game::cards::card_instance::{CardInstance, UnitStats};
-use crate::game::id_types::{CardInstanceId, LocationId, PlayerId};
+use crate::game::id_types::{TokenInstanceId, LocationId, PlayerId};
 
 pub struct CardRegistry {
     pub card_registry: HashMap<String, &'static Card>,
@@ -39,7 +39,7 @@ impl CardRegistry {
         })
     }
 
-    pub fn instance_card(&self, id: &str, instance_id: CardInstanceId, location: LocationId, owner: PlayerId) -> Result<CardInstance> {
+    pub fn instance_card(&self, id: &str, instance_id: TokenInstanceId, location: LocationId, owner: PlayerId) -> Result<CardInstance> {
         let card = self.card_registry.get(id).context(eyre!("Card not found: {}", id))?;
 
         let mut health = 0;

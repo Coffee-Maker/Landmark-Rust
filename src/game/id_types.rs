@@ -140,9 +140,9 @@ impl FromStr for LocationId {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct CardInstanceId(pub ServerInstanceId);
+pub struct TokenInstanceId(pub ServerInstanceId);
 
-impl FromStr for CardInstanceId {
+impl FromStr for TokenInstanceId {
     type Err = ParseIntError;
 
     fn from_str(s: &str) -> color_eyre::Result<Self, Self::Err> {
@@ -150,7 +150,7 @@ impl FromStr for CardInstanceId {
     }
 }
 
-impl Display for CardInstanceId {
+impl Display for TokenInstanceId {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
