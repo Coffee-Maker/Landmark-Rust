@@ -12,7 +12,7 @@ pub mod location_ids {
     use color_eyre::eyre::{ContextCompat, eyre};
     use color_eyre::Result;
     use crate::game::board::Board;
-    use crate::game::cards::card_deserialization::SlotPosition;
+    use crate::game::cards::token_deserializer::SlotPosition;
 
     use crate::game::id_types::{LocationId, PlayerId};
     use crate::game::player::Player;

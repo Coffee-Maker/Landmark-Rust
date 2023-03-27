@@ -2,26 +2,29 @@ use std::collections::{HashMap, VecDeque};
 
 use color_eyre::eyre::{Context, ContextCompat, eyre};
 use color_eyre::Result;
+use futures_util::FutureExt;
 use crate::CARD_REGISTRY;
 use crate::game::animation_presets::AnimationPreset;
 
 use crate::game::board::Board;
 use crate::game::cards;
-use crate::game::cards::card_deserialization::{CardBehavior, CardBehaviorAction, CardBehaviorTriggerWhenName, CardCategory};
-use crate::game::cards::card_instance::CardInstance;
+use crate::game::cards::token_deserializer::{TokenBehavior, CardBehaviorAction, CardBehaviorTriggerWhenName, TokenCategory};
+use crate::game::cards::card_instance::TokenInstance;
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::id_types::{TokenInstanceId, location_ids, LocationId, PlayerId, ServerInstanceId};
 use crate::game::instruction::InstructionToClient;
 use crate::game::location::Location;
 use crate::game::new_state_machine::{StateMachine, StateTransitionGroup};
 use crate::game::player::Player;
-use crate::game::trigger_context::{ContextValue, GameContext};
+use crate::game::game_context::{context_keys, ContextValue, GameContext};
+use crate::game::prompts::{PromptCallback, PromptInstance, PromptCallbackResult, PromptProfile, PromptType};
+use crate::game::tag::get_tag;
 
-type ThreadSafeLocation = dyn Location + Send + Sync;
+pub type ThreadSafeLocation = dyn Location + Send + Sync;
 
 pub struct StateResources {
     pub locations: HashMap<LocationId, Box<ThreadSafeLocation>>,
-    pub card_instances: HashMap<TokenInstanceId, CardInstance>,
+    pub token_instances: HashMap<TokenInstanceId, TokenInstance>,
     pub round: u32,
     pub player_1: Player,
     pub player_2: Player,
@@ -34,7 +37,7 @@ impl StateResources {
     pub fn new() -> Self {
         Self {
             locations: HashMap::new(),
-            card_instances: HashMap::new(),
+            token_instances: HashMap::new(),
             round: 0,
             player_1: Player::new(PlayerId::Player1, location_ids::PLAYER_1_DECK, location_ids::PLAYER_1_HAND),
             player_2: Player::new(PlayerId::Player2, location_ids::PLAYER_2_DECK, location_ids::PLAYER_2_HAND),
@@ -42,10 +45,6 @@ impl StateResources {
             board: Board::new(),
             location_counter: 0,
         }
-    }
-
-    pub fn insert_location(&mut self, mut location: Box<ThreadSafeLocation>) {
-        self.locations.insert(location.get_location_id(), location);
     }
 
     pub async fn reset_game(&mut self, communicator: &mut GameCommunicator) -> Result<()> {
@@ -60,8 +59,8 @@ impl StateResources {
         communicator.send_game_instruction(InstructionToClient::ClearLocation { location }).await
     }
 
-    pub async fn move_card(&mut self, card_instance_id: TokenInstanceId, to: LocationId, move_owner: PlayerId, animation: Option<AnimationPreset>, communicator: &mut GameCommunicator) -> Result<()> {
-        let mut card_instance = self.card_instances.get_mut(&card_instance_id).context("Card instance not found while attempting a move")?;
+    pub async fn move_token(&mut self, card_instance_id: TokenInstanceId, to: LocationId, animation: Option<AnimationPreset>, communicator: &mut GameCommunicator) -> Result<()> {
+        let mut card_instance = self.token_instances.get_mut(&card_instance_id).context("Card instance not found while attempting a move")?;
         let from = card_instance.location;
         let from_instance = self.locations.get_mut(&from).context("Tried to move card from a location that doesn't exist")?;
         from_instance.remove_card(card_instance_id);
@@ -83,8 +82,8 @@ impl StateResources {
             }).await?;
         }
 
-        communicator.send_game_instruction(InstructionToClient::MoveCard {
-            card: card_instance_id,
+        communicator.send_game_instruction(InstructionToClient::MoveToken {
+            token: card_instance_id,
             to: to_id
         }).await?;
 
@@ -102,7 +101,7 @@ impl StateResources {
         Ok(())
     }
 
-    pub async fn create_card(&mut self, id: &str, location: LocationId, owner: PlayerId, communicator: &mut GameCommunicator) -> Result<()> {
+    pub async fn create_token(&mut self, id: &str, location: LocationId, owner: PlayerId, communicator: &mut GameCommunicator) -> Result<()> {
         let card_instance_id = TokenInstanceId(fastrand::u64(..));
 
         let loc = self.locations
@@ -119,7 +118,7 @@ impl StateResources {
         card.instance_id = card_instance_id;
         card.location = location;
 
-        communicator.send_game_instruction(InstructionToClient::CreateCard {
+        communicator.send_game_instruction(InstructionToClient::CreateToken {
             card_data: card.clone(),
             instance_id: card_instance_id,
             player_id: owner,
@@ -128,33 +127,199 @@ impl StateResources {
 
         communicator.send_game_instruction(InstructionToClient::UpdateBehaviors { card_data: card.clone() }).await?;
 
-        self.card_instances.insert(card_instance_id, card);
+        self.token_instances.insert(card_instance_id, card);
         loc.add_card(card_instance_id)?;
 
         Ok(())
     }
 
-    pub async fn destroy_card(&mut self, card: TokenInstanceId, communicator: &mut GameCommunicator) -> Result<()> {
-        let card_instance = self.card_instances.get(&card).unwrap();
-        if matches!(card_instance.card.card_category, CardCategory::Hero { .. }) {
-            communicator.send_game_instruction(InstructionToClient::EndGame { winner: card_instance.owner.opponent() }).await?;
+    pub async fn destroy_token(&mut self, token_instance_id: TokenInstanceId, communicator: &mut GameCommunicator) -> Result<()> {
+        let token_instance = self.token_instances.get(&token_instance_id).unwrap();
+        if matches!(token_instance.token_data.token_category, TokenCategory::Hero { .. }) {
+            communicator.send_game_instruction(InstructionToClient::EndGame { winner: token_instance.owner.opponent() }).await?;
             return Err(eyre!("Game has concluded"))
         }
+
+        let graveyard = self.board.get_side(token_instance.owner).graveyard;
+        self.move_token(token_instance_id, graveyard, Some(AnimationPreset::EaseInOut), communicator).await?;
 
         Ok(())
     }
 
     pub fn get_player(&self, id: PlayerId) -> &Player {
         match id {
-            Player1 => &self.player_1,
-            Player2 => &self.player_2,
+            PlayerId::Player1 => &self.player_1,
+            PlayerId::Player2 => &self.player_2,
         }
     }
 
     pub fn get_player_mut(&mut self, id: PlayerId) -> &mut Player {
         match id {
-            Player1 => &mut self.player_1,
-            Player2 => &mut self.player_2,
+            PlayerId::Player1 => &mut self.player_1,
+            PlayerId::Player2 => &mut self.player_2,
         }
+    }
+
+    pub async fn show_selectable_cards(&self, communicator: &mut GameCommunicator) -> Result<PromptCallback> {
+        let mut callback = PromptCallback::new(|prompt, context, state, resources, communicator| {
+            let new_callback = match prompt.prompt {
+                PromptType::SelectCard(token_instance_id) => {
+                    context.insert(context_keys::SELECTED_TOKEN, ContextValue::TokenInstanceId(token_instance_id));
+                    Some(resources.show_attackable_cards(communicator).now_or_never().context("Failed to run async function")??)
+                }
+                _ => None
+            };
+            Ok(PromptCallbackResult::End(new_callback))
+        }, true);
+        for (id, card) in &self.token_instances {
+            if card.owner != self.current_turn || location_ids::identify_location(card.location)?.is_field() == false {
+                continue;
+            }
+
+            callback.add_prompt(PromptProfile {
+                prompt_type: PromptType::SelectCard(*id),
+                value: false,
+                owner: self.current_turn,
+            })
+        }
+        Ok(callback)
+    }
+
+    pub async fn show_attackable_cards(&mut self, communicator: &mut GameCommunicator) -> Result<PromptCallback> {
+        let mut callback = PromptCallback::new(|prompt, context, state, resources, communicator| {
+            match prompt.prompt {
+                PromptType::AttackCard(token_instance_id) => {
+                    let attacker = context.get(context_keys::SELECTED_TOKEN)?.as_token_instance_id()?;
+                    state.attack(attacker, token_instance_id, false);
+                }
+                _ => {}
+            }
+            Ok(PromptCallbackResult::End(None))
+        }, true);
+
+        if self.round == 0 {
+            return Ok(callback)
+        }
+
+        let mut cards: Vec<&TokenInstance> = self.token_instances.values().collect();
+        cards.retain(|c| location_ids::identify_location(c.location).unwrap().is_field_of(self.current_turn.opponent()));
+
+        let front_most_row = cards.iter().fold(100, |current_min, card| {
+            location_ids::get_slot_position(card.location, &self.board).unwrap().z.min(current_min)
+        });
+
+        cards.retain(|c| {
+            location_ids::get_slot_position(c.location, &self.board).unwrap().z == front_most_row
+        });
+
+        if cards.len() == 0 {
+            // No more defending tokens, hero should be attackable
+            let hero_slot = self.board.get_side(self.current_turn.opponent()).hero;
+            cards.push(self.token_instances.get(
+                &self.locations.get(&hero_slot).context("Hero slot does not exist")?.get_card().context("Hero was not found in hero slot")?).context("Hero does not exist")?);
+        }
+
+        for card in cards{
+            callback.add_prompt(PromptProfile {
+                prompt_type: PromptType::AttackCard(card.instance_id),
+                value: false,
+                owner: self.current_turn,
+            })
+        }
+        Ok(callback)
+    }
+
+    pub async fn can_player_summon_token(&self, token_instance_id: TokenInstanceId, to_location: LocationId, communicator: &mut GameCommunicator) -> Result<bool> {
+        let token_instance = self.token_instances.get(&token_instance_id).context("Unable to find card")?;
+        let token_location = token_instance.location.clone();
+
+        if token_instance.location == to_location {
+            return Ok(false);
+        }
+
+        let mut allow = true;
+        if token_instance.owner != self.current_turn {
+            communicator.send_error("Can't play token out of turn");
+            allow = false;
+        }
+
+        if token_instance.location != self.get_player(token_instance.owner).hand {
+            communicator.send_error("Can't play token from this location");
+            allow = false;
+        }
+
+        if self.board.get_side(token_instance.owner).field.contains(&to_location) == false {
+            communicator.send_error("Can't play token to this location");
+            allow = false;
+        }
+
+        if token_instance.cost > self.get_player(self.current_turn).thaum {
+            communicator.send_error("Can't play token to this location");
+            allow = false;
+        }
+
+        if allow == false {
+            communicator.send_game_instruction(InstructionToClient::MoveToken { token: token_instance_id, to: token_location }).await?;
+        }
+
+        return Ok(allow)
+    }
+
+    pub async fn set_current_turn(&mut self, player_id: PlayerId, communicator: &mut GameCommunicator) -> Result<()> {
+        self.current_turn = player_id;
+        self.round += 1;
+        communicator.send_game_instruction(InstructionToClient::PassTurn { player_id }).await?;
+        self.start_turn(communicator).await?;
+        Ok(())
+    }
+
+    pub async fn start_turn(mut self: &mut Self, communicator: &mut GameCommunicator) -> Result<()> {
+        let thaum = self.round.div_ceil(2);
+        Player::set_thaum(self.current_turn, self, thaum + 10, communicator).await?;
+        Player::draw_card(self.current_turn, self, communicator).await?;
+
+        // Units recover their base defense
+        let mut cards = self.token_instances.values_mut().collect::<Vec<&mut TokenInstance>>();
+        cards.retain(|c| location_ids::identify_location(c.location).unwrap().is_field());
+        cards.retain(|c| c.owner == self.current_turn);
+        for unit in cards {
+            unit.current_stats.defense = unit.base_stats.defense;
+            communicator.send_game_instruction(InstructionToClient::Animate {
+                card: unit.instance_id,
+                location: unit.location,
+                duration: 0.2,
+                preset: AnimationPreset::Raise,
+            }).await?;
+            communicator.send_game_instruction(InstructionToClient::UpdateData { card_data: unit.clone() }).await?;
+            communicator.send_game_instruction(InstructionToClient::Animate {
+                card: unit.instance_id,
+                location: unit.location,
+                duration: 0.2,
+                preset: AnimationPreset::EaseInOut,
+            }).await?;
+        }
+
+        let hero = match self.current_turn {
+            PlayerId::Player1 => &mut self.player_1.hero,
+            PlayerId::Player2 => &mut self.player_2.hero,
+        };
+
+        let hero = self.token_instances.get_mut(&hero).context("Hero not found")?;
+
+        match hero.token_data.token_category {
+            TokenCategory::Hero { health, defense } => hero.current_stats.defense = defense,
+            _ => {}
+        }
+
+        communicator.send_game_instruction(InstructionToClient::UpdateData { card_data: hero.clone() }).await?;
+        Ok(())
+    }
+
+    pub async fn player_pass_turn(&mut self, data: &str, communicator: &mut GameCommunicator) -> Result<()> {
+        self.set_current_turn(
+            if self.current_turn == PlayerId::Player1 { PlayerId::Player2 } else { PlayerId::Player1 },
+            communicator
+        ).await?;
+        Ok(())
     }
 }

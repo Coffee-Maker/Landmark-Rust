@@ -4,11 +4,12 @@ use color_eyre::eyre::ContextCompat;
 use color_eyre::Result;
 
 use crate::game::game_communicator::GameCommunicator;
-use crate::game::game_state::GameState;
 use crate::game::id_types::{TokenInstanceId, LocationId, PlayerId, PromptInstanceId};
 use crate::game::instruction::InstructionToClient;
 use crate::game::tag::get_tag;
-use crate::game::trigger_context::GameContext;
+use crate::game::game_context::GameContext;
+use crate::game::new_state_machine::StateMachine;
+use crate::game::state_resources::StateResources;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PromptType {
@@ -38,7 +39,7 @@ impl PromptType {
     }
 }
 
-pub type PromptCallbackClosure = fn(callback_data: PromptCallbackContext, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<PromptCallbackResult>;
+pub type PromptCallbackClosure = fn(callback_data: PromptInstance, context: &mut GameContext, state: &mut StateMachine, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<PromptCallbackResult>;
 
 pub struct PromptProfile {
     pub prompt_type: PromptType,
@@ -82,11 +83,11 @@ impl PromptCallback {
         Ok(())
     }
 
-    pub fn execute(&mut self, data: String, state: &mut GameState, communicator: &mut GameCommunicator) -> Result<PromptCallbackResult> {
+    pub fn execute(&mut self, data: String, context: &mut GameContext, state: &mut StateMachine, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<PromptCallbackResult> {
         let prompt_instance_id = PromptInstanceId(get_tag("callback_id", &data)?.parse::<u64>()?);
         let value = get_tag("value", &data)?.parse::<bool>()?;
         let prompt_type = self.prompt_instances.get(&prompt_instance_id).context("Failed to find prompt with given instance id")?.prompt_type;
-        (self.closure)(PromptCallbackContext { prompt: prompt_type, value }, state, communicator)
+        (self.closure)(PromptInstance { prompt: prompt_type, value }, context, state, resources, communicator)
     }
 
     pub async fn cancel(&mut self, communicator: &mut GameCommunicator) -> Result<()> {
@@ -100,7 +101,7 @@ impl PromptCallback {
     }
 }
 
-pub struct PromptCallbackContext {
+pub struct PromptInstance {
     pub prompt: PromptType,
     pub value: bool,
 }

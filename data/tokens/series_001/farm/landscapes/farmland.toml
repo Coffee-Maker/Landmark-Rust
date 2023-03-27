@@ -16,11 +16,11 @@ slots = [
 
 [[behavior]]
     name = "Husbandry"
-    description = "When you summon an Animal, draw a card."
+    description = "When you summon an Animal, draw a token."
 
     [[behavior.trigger]]
     when = "owned:has_been_summoned"
-    and = { check = "type_contains", with = { target = { context = { context_key = "card_instance" } }, types = ["creature"] } }
+    and = { check = "type_contains", with = { target = { context = { key = "token_instance" } }, types = ["creature"] } }
 
     [[behavior.action]]
     then = "draw_card"

@@ -15,4 +15,4 @@ description = "When Flame Elemental attacks, deal 1 damage to all enemy units ad
 
     [[behavior.action]]
     then = "damage_unit"
-    with = { target = { find = { filter = { adjacent_to = { context = { key = "target" } } } } }, amount = 1 }
+    with = { target = { find = { filter = { adjacent_to = { context = { key = "defender" } } } } }, amount = 1 }

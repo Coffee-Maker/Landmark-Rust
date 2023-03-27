@@ -2,7 +2,7 @@
 use tokio::net::TcpStream;
 use tokio_tungstenite::WebSocketStream;
 use crate::CARD_REGISTRY;
-use crate::game::cards::card_deserialization::{Card, CardCategory};
+use crate::game::cards::token_deserializer::{TokenData, TokenCategory};
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::tag::{get_tag, Tag};
 
@@ -23,7 +23,7 @@ pub async fn finder_service(websocket: WebSocketStream<TcpStream>) -> Result<()>
                 communicator.send_raw(&"clear_results|//0/!").await?;
                 let registry = CARD_REGISTRY.lock().await;
                 let mut message_to_send = String::new();
-                for card in registry.card_registry.values().collect::<Vec<&&Card>>() {
+                for card in registry.card_registry.values().collect::<Vec<&&TokenData>>() {
                     message_to_send = format!("{}add_result|{}{}//INS//", message_to_send, Tag::U64(1).build()?, Tag::CardData(card.clone().clone()).build()?);
                     // Todo: Add behaviors in message
                 }

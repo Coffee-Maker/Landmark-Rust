@@ -7,8 +7,7 @@ use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::WebSocketStream;
 
-use crate::game::cards::card_deserialization::{CardBehavior, CardBehaviorTriggerWhenName};
-use crate::game::game_state::GameState;
+use crate::game::cards::token_deserializer::{TokenBehavior, CardBehaviorTriggerWhenName};
 use crate::game::id_types::{TokenInstanceId, PlayerId, PromptInstanceId, ServerInstanceId};
 use crate::game::instruction::InstructionToClient;
 

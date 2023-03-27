@@ -1,0 +1,17 @@
+category = "unit"
+name = "Scarecrow"
+description = "Amidst the rustling of wheat and the whispers of the wind, the Scarecrow stands vigilant, protecting the bounty of the land from harm."
+cost = 3
+health = 4
+types = ["construct", "creature"]
+
+#[[behavior]]
+#name = "Scare"
+#description = "When this unit is going to be attacked, redirect the attack to a random unit on the field that is not the attacker"
+#
+#    [[behavior.trigger]]
+#    when = "this:will_be_attacked"
+#
+#    [[behavior.action]]
+#    then = "redirect_target"
+#    with = { new_target = { random = { target = { find = { filter = { is_not = "this" } } } } } }

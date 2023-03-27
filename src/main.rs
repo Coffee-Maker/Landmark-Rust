@@ -1,4 +1,5 @@
 #![feature(let_chains)]
+#![feature(int_roundings)]
 #![allow(unused)]
 
 use std::fs;
@@ -10,21 +11,21 @@ use tokio_tungstenite::tungstenite::handshake::server::Request;
 use tokio_tungstenite::tungstenite::handshake::server::Response;
 
 use game::game_state;
-use crate::game::cards::card_deserialization::{Card, CardBehaviorTriggerWhenActivator};
+use crate::game::cards::token_deserializer::{TokenData, CardBehaviorTriggerWhenActivator};
 use crate::game::cards::card_registry::CardRegistry;
 
 mod game;
 mod card_finder;
 
 pub static CARD_REGISTRY: Lazy<Mutex<CardRegistry>> = Lazy::new(|| {
-    Mutex::new(CardRegistry::from_directory("data/cards").unwrap())
+    Mutex::new(CardRegistry::from_directory("data/tokens").unwrap())
 });
 
 #[tokio::main]
 async fn main() -> Result<()> {
     color_eyre::install()?;
 
-    game::cards::card_registry::CardRegistry::from_directory("data/cards")?;
+    game::cards::card_registry::CardRegistry::from_directory("data/tokens")?;
 
     println!("Starting TcpListener");
 
@@ -48,7 +49,7 @@ async fn accept_connection(stream: TcpStream) {
                 Ok(response)
             }
             "/cardfinder" => {
-                service_type = ServiceType::CardFinder;
+                service_type = ServiceType::TokenFinder;
                 Ok(response)
             }
             _ => {
@@ -66,10 +67,10 @@ async fn accept_connection(stream: TcpStream) {
         }
         ServiceType::Game => {
             if let Err(e) = game_state::game_service(websocket).await {
-                eprintln!("{}", e);
+                eprintln!("{:?}", e);
             }
         },
-        ServiceType::CardFinder => {
+        ServiceType::TokenFinder => {
             card_finder::card_finder::finder_service(websocket).await;
         },
     }
@@ -79,5 +80,5 @@ async fn accept_connection(stream: TcpStream) {
 enum ServiceType {
     None,
     Game,
-    CardFinder,
+    TokenFinder,
 }

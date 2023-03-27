@@ -2,7 +2,7 @@ use color_eyre::eyre::{ContextCompat, eyre};
 use color_eyre::Result;
 use crate::game::animation_presets::AnimationPreset;
 use crate::game::board::Board;
-use crate::game::cards::card_deserialization::CardCategory;
+use crate::game::cards::token_deserializer::TokenCategory;
 
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::id_types::{TokenInstanceId, LocationId, PlayerId};
@@ -40,11 +40,21 @@ impl Player {
         }).await
     }
 
+    pub async fn spend_thaum(player_id: PlayerId, resources: &mut StateResources, amount: u32, communicator: &mut GameCommunicator) -> Result<()> {
+        resources.get_player_mut(player_id).thaum -= amount;
+        let thaum = resources.get_player_mut(player_id).thaum;
+
+        communicator.send_game_instruction(InstructionToClient::SetThaum {
+            player_id,
+            amount: thaum,
+        }).await
+    }
+
     pub async fn populate_deck(player_id: PlayerId, data: &str, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<()> {
         let player = resources.get_player(player_id);
         let player_deck = player.deck;
         for split in data.split(',') {
-            resources.create_card(split, player_deck, player_id, communicator).await?;
+            resources.create_token(split, player_deck, player_id, communicator).await?;
         }
 
         Ok(())
@@ -56,7 +66,7 @@ impl Player {
         // Find hero and landscape
         let heroes = resources.locations.get(&player_deck).context("ya nan")?.get_cards().iter()
             .filter_map(|&card_key| {
-                if let Some(card_instance) = resources.card_instances.get(&card_key) && matches!(card_instance.card.card_category, CardCategory::Hero { .. }){
+                if let Some(card_instance) = resources.token_instances.get(&card_key) && matches!(card_instance.token_data.token_category, TokenCategory::Hero { .. }){
                     Some(card_key)
                 } else {
                     None
@@ -69,7 +79,7 @@ impl Player {
                 let hero = *heroes.first().unwrap(); // We already checked that there is one item in the vector
                 resources.get_player_mut(player_id).hero = hero;
                 let hero_location = resources.board.get_side(player_id).hero;
-                resources.move_card(hero, hero_location, player_id, None, communicator).await?;
+                resources.move_token(hero, hero_location, None, communicator).await?;
             }
             0 => return Err(eyre!("No hero found in deck")),
             _ => return Err(eyre!("Found more than one hero in deck")),
@@ -77,7 +87,7 @@ impl Player {
 
         let landscapes = resources.locations.get(&player_deck).context("ya nan")?.get_cards().iter()
             .filter_map(|&card_key| {
-                if let Some(card_instance) = resources.card_instances.get(&card_key) && matches!(card_instance.card.card_category, CardCategory::Landscape { .. }) {
+                if let Some(card_instance) = resources.token_instances.get(&card_key) && matches!(card_instance.token_data.token_category, TokenCategory::Landscape { .. }) {
                     Some(card_key)
                 } else {
                     None
@@ -90,7 +100,7 @@ impl Player {
                 let landscape = *landscapes.first().unwrap(); // We already checked that there is one item in the vector
                 resources.get_player_mut(player_id).landscape = landscape;
                 let landscape_location = resources.board.get_side(player_id).landscape;
-                resources.move_card(landscape, landscape_location, player_id, None, communicator).await?;
+                resources.move_token(landscape, landscape_location, None, communicator).await?;
             }
             0 => return Err(eyre!("No hero found in deck")),
             _ => return Err(eyre!("Found more than one hero in deck")),
@@ -109,10 +119,10 @@ impl Player {
         match card {
             None => {
                 communicator.send_game_instruction(InstructionToClient::EndGame { winner: player_id.opponent() }).await?;
-                return Err(eyre!("Ran out of cards, game concluded"))
+                return Err(eyre!("Ran out of tokens, game concluded"))
             }
             Some(card_key) => {
-                resources.move_card(card_key, player_hand, player_id, None, communicator).await?;
+                resources.move_token(card_key, player_hand, None, communicator).await?;
             }
         }
 

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use color_eyre::Result;
 use color_eyre::eyre::{ContextCompat, eyre};
 use crate::game::card_slot::CardSlot;
-use crate::game::cards::card_deserialization::{CardCategory, SlotPosition};
+use crate::game::cards::token_deserializer::{TokenCategory, SlotPosition};
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::id_types::PlayerId::{Player1, Player2};
 use crate::game::instruction::InstructionToClient;
@@ -26,8 +26,8 @@ impl Board {
     }
 
     pub async fn prepare_landscapes(resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<()> {
-        BoardSide::add_landscape_slots(resources, communicator).await?;
-        BoardSide::add_landscape_slots(resources, communicator).await
+        BoardSide::add_landscape_slots(PlayerId::Player1, resources, communicator).await?;
+        BoardSide::add_landscape_slots(PlayerId::Player2, resources, communicator).await
     }
 
     pub fn get_cards_in_play(&self, resources: &StateResources) -> Vec<TokenInstanceId> {
@@ -39,7 +39,7 @@ impl Board {
     }
     
     pub fn get_relevant_landscape(&self, resources: &StateResources, card: TokenInstanceId) -> Option<LocationId> {
-        let card = resources.card_instances.get(&card)?;
+        let card = resources.token_instances.get(&card)?;
 
         return if self.side_1.field.contains(&card.location) {
             Some(self.side_1.landscape)
@@ -103,11 +103,11 @@ impl BoardSide {
     pub async fn add_landscape_slots(owner: PlayerId, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<()> {
         let side = resources.board.get_side_mut(owner);
         let location = resources.locations.get(&side.landscape).context("Landscape location does not exist")?;
-        let card_instance = resources.card_instances.get(&location.get_card().context("Landscape card was not provided")?).context(format!("Card in landscape slot for {} does not exist", owner))?;
-        let landscape = &card_instance.card.card_category;
+        let card_instance = resources.token_instances.get(&location.get_card().context("Landscape card was not provided")?).context(format!("Card in landscape slot for {} does not exist", owner))?;
+        let landscape = &card_instance.token_data.token_category;
 
         match landscape {
-            CardCategory::Landscape { slots } => {
+            TokenCategory::Landscape { slots } => {
                 let mut i = 0 as u64;
 
                 for slot in slots {
@@ -123,7 +123,7 @@ impl BoardSide {
                     let new_loc = CardSlot::new(location_id);
                     side.field.push(location_id);
                     side.field_slot_positions.push(*slot);
-                    resources.insert_location(Box::new(new_loc));
+                    resources.locations.insert(location_id, Box::new(new_loc));
                 }
                 Ok(())
             }

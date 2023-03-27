@@ -1,5 +1,5 @@
 pub mod card_instance;
 //pub mod card_behavior;
-pub mod card_deserialization;
+pub mod token_deserializer;
 pub mod card_registry;
-pub mod card_behaviors;
+pub mod token_behaviors;

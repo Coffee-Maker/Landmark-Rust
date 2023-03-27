@@ -9,19 +9,18 @@ use toml::Table;
 use walkdir::WalkDir;
 use crate::game::board::Board;
 
-use crate::game::cards::card_deserialization::{Card, CardBehavior};
+use crate::game::cards::token_deserializer::{TokenData, TokenBehavior};
 use crate::game::game_communicator::GameCommunicator;
-use crate::game::game_state::{CardBehaviorTriggerQueue, GameState};
 use crate::game::id_types::{TokenInstanceId, LocationId, PlayerId, ServerInstanceId};
 use crate::game::state_resources::StateResources;
 
 #[derive(Clone, Debug)]
-pub struct CardInstance {
-    pub card: &'static Card,
+pub struct TokenInstance {
+    pub token_data: &'static TokenData,
     pub owner: PlayerId,
     pub location: LocationId,
     pub instance_id: TokenInstanceId,
-    pub behaviors: Vec<CardBehavior>,
+    pub behaviors: Vec<TokenBehavior>,
     pub cost: u32,
     pub base_stats: UnitStats,
     pub current_stats: UnitStats,
@@ -49,7 +48,7 @@ impl UnitStats {
     }
 }
 
-impl CardInstance {
+impl TokenInstance {
     pub fn is_alive(&self, resources: &StateResources, board: &Board) -> bool {
         let graveyard_1 = resources.locations.get(&board.side_1.graveyard).unwrap();
         let graveyard_2 = resources.locations.get(&board.side_2.graveyard).unwrap();
