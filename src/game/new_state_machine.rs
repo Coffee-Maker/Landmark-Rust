@@ -86,11 +86,11 @@ impl StateMachine {
         Board::prepare_landscapes(resources, communicator).await?;
 
         for _ in 0..5 {
-            Player::draw_card(PlayerId::Player1, resources, communicator).await?;
-            Player::draw_card(PlayerId::Player2, resources, communicator).await?;
+            self.draw_card(PlayerId::Player1);
+            self.draw_card(PlayerId::Player2);
         }
 
-        resources.set_current_turn(resources.current_turn, communicator).await?;
+        resources.set_current_turn(resources.current_turn, self, communicator).await?;
 
         Ok(())
     }
@@ -128,7 +128,11 @@ impl StateMachine {
         transition_group.states.push_back(TriggerState::CheckCancel);
         transition_group.states.push_back(TriggerState::HasAttacked);
         transition_group.states.push_back(TriggerState::HasBeenAttacked);
-        self.state_transition_groups.push_front(transition_group);
+        if is_counter_attack {
+            self.state_transition_groups.push_back(transition_group);
+        } else {
+            self.state_transition_groups.push_front(transition_group);
+        }
     }
 
     pub fn deal_effect_damage(&mut self, attacker: TokenInstanceId, defender: TokenInstanceId, amount: i32) {
@@ -147,9 +151,40 @@ impl StateMachine {
         transition_group.context.insert(context_keys::DEFENDER, ContextValue::TokenInstanceId(defender));
         transition_group.states.push_back(TriggerState::WillDefeat);
         transition_group.states.push_back(TriggerState::WillBeDefeated);
+        transition_group.states.push_back(TriggerState::WillBeDestroyed);
         transition_group.states.push_back(TriggerState::CheckCancel);
         transition_group.states.push_back(TriggerState::HasDefeated);
         transition_group.states.push_back(TriggerState::HasBeenDefeated);
+        transition_group.states.push_back(TriggerState::HasBeenDestroyed);
+        self.state_transition_groups.push_front(transition_group);
+    }
+
+    pub fn destroy_token(&mut self, attacker: TokenInstanceId, defender: TokenInstanceId) {
+        let mut transition_group = StateTransitionGroup::new();
+        transition_group.context.insert(context_keys::ATTACKER, ContextValue::TokenInstanceId(attacker));
+        transition_group.context.insert(context_keys::DEFENDER, ContextValue::TokenInstanceId(defender));
+        transition_group.states.push_back(TriggerState::WillBeDestroyed);
+        transition_group.states.push_back(TriggerState::CheckCancel);
+        transition_group.states.push_back(TriggerState::HasBeenDestroyed);
+        self.state_transition_groups.push_front(transition_group);
+    }
+
+    pub fn create_token(&mut self, token_id: &str, owner: PlayerId, location: LocationId) {
+        let mut transition_group = StateTransitionGroup::new();
+        transition_group.context.insert(context_keys::CREATING_CARD, ContextValue::String(token_id.to_string()));
+        transition_group.context.insert(context_keys::PLAYER, ContextValue::PlayerId(owner));
+        transition_group.context.insert(context_keys::TO_LOCATION, ContextValue::LocationId(location));
+        transition_group.states.push_back(TriggerState::HasBeenCreated);
+        self.state_transition_groups.push_front(transition_group);
+    }
+
+    pub fn draw_card(&mut self, player: PlayerId) {
+        let mut transition_group = StateTransitionGroup::new();
+        transition_group.context.insert(context_keys::PLAYER, ContextValue::PlayerId(player));
+        transition_group.states.push_back(TriggerState::WillDrawCard);
+        transition_group.states.push_back(TriggerState::CheckCancel);
+        transition_group.states.push_back(TriggerState::HasDrawnCard);
+        transition_group.states.push_back(TriggerState::HasBeenDrawn);
         self.state_transition_groups.push_front(transition_group);
     }
 }
@@ -179,6 +214,15 @@ impl StateTransitionGroup {
             TriggerState::CheckCancel => {
                 let cancel = self.context.get(context_keys::CANCEL).map_or(false, |v| v.as_bool().unwrap());
                 if cancel { TriggerResult::TerminateGroup } else { TriggerResult::Ok }
+            }
+
+            TriggerState::HasBeenCreated => {
+                let token_id = self.context.get(context_keys::CREATING_CARD)?.as_string()?;
+                let location = self.context.get(context_keys::TO_LOCATION)?.as_location_id()?;
+                let owner = self.context.get(context_keys::PLAYER)?.as_player_id()?;
+                let instance_id = resources.create_token(token_id, location, owner, communicator).await?;
+                self.context.insert(context_keys::CREATING_CARD, ContextValue::TokenInstanceId(instance_id));
+                TriggerResult::Ok
             }
 
             TriggerState::WillBeMoved => {
@@ -258,20 +302,54 @@ impl StateTransitionGroup {
             TriggerState::WillBeDefeated => {
                 TriggerResult::Ok
             }
+            TriggerState::WillBeDestroyed => {
+                TriggerResult::Ok
+            }
             TriggerState::HasBeenDefeated => {
+                TriggerResult::Ok
+            }
+            TriggerState::HasBeenDestroyed => {
                 let defender_id = self.context.get(context_keys::DEFENDER)?.as_token_instance_id()?;
                 resources.destroy_token(defender_id, communicator).await?;
                 TriggerResult::Ok
             }
+
+            TriggerState::WillDrawCard => {
+                TriggerResult::Ok
+            }
+            TriggerState::HasDrawnCard => {
+                let player_id = self.context.get(context_keys::PLAYER)?.as_player_id()?;
+                let player_deck = resources.get_player(player_id).deck;
+                let player_hand = resources.get_player(player_id).hand;
+                let card = resources.locations.get(&player_deck).unwrap().get_card();
+
+                match card {
+                    None => {
+                        communicator.send_game_instruction(InstructionToClient::EndGame { winner: player_id.opponent() }).await?;
+                        return Err(eyre!("Ran out of tokens, game concluded"))
+                    }
+                    Some(card_key) => {
+                        resources.move_token(card_key, player_hand, None, communicator).await?;
+                        self.context.insert(context_keys::DRAWN_CARD, ContextValue::TokenInstanceId(card_key));
+                    }
+                }
+
+                TriggerResult::Ok
+            }
+            TriggerState::HasBeenDrawn => {
+                TriggerResult::Ok
+            }
             _ => TriggerResult::Ok
         });
+
+        if matches!(next, TriggerState::CheckCancel) { return result }
 
         if let Ok(this) = what_is_this(next.clone()) {
             let this_context_value = self.context.get(&this)?.clone();
             self.context.insert(context_keys::OWNER, ContextValue::PlayerId(resources.token_instances.get(&this_context_value.as_token_instance_id()?).unwrap().owner));
             self.context.insert(context_keys::TRIGGER_THIS, this_context_value);
         } else {
-            // In cases that have no "this", we need another way to set the context owner. This is needed for cases like owner:turn_started
+            self.context.insert(context_keys::OWNER, self.context.get(&*who_is_owner(next.clone())?)?.clone());
         }
         for token_id in resources.board.get_cards_in_play(resources) {
             self.context.insert(context_keys::ACTION_THIS, ContextValue::TokenInstanceId(token_id));
@@ -321,6 +399,16 @@ fn what_is_this(state: TriggerState) -> Result<String> {
         TriggerState::HasEquipped => context_keys::EQUIP_TARGET,
         TriggerState::WillBeEquipped => context_keys::EQUIP_TARGET,
         TriggerState::HasBeenEquipped => context_keys::EQUIPPING_ITEM,
+        TriggerState::HasBeenDrawn => context_keys::DRAWN_CARD,
+        TriggerState::HasBeenCreated => context_keys::CREATING_CARD,
         _ => return Err(eyre!("Can't specify what this is for state: {state:?}")),
+    }.to_string())
+}
+
+fn who_is_owner(state: TriggerState) -> Result<String> {
+    Ok(match state {
+        TriggerState::WillDrawCard => context_keys::PLAYER,
+        TriggerState::HasDrawnCard => context_keys::PLAYER,
+        _ => return Err(eyre!("Can't specify what owner is for state: {state:?}")),
     }.to_string())
 }

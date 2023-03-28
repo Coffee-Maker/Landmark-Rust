@@ -113,7 +113,9 @@ pub enum CardBehaviorTriggerWhenName {
     TurnEnded, // Todo
 
     // Card
+    HasBeenCreated,
     WillDrawCard,
+    HasDrawnCard,
     HasBeenDrawn,
     WillDestroy,
     WillBeDestroyed,
@@ -533,7 +535,7 @@ impl CardBehaviorAction {
         let result = match self {
             CardBehaviorAction::DrawCard { target } => {
                 for player in target.evaluate(context.get(context_keys::OWNER)?.as_player_id()?) {
-                    Player::draw_card(player, resources, communicator).await?;
+                    state.draw_card(player);
                 }
                 CardBehaviorResult::Ok
             }
@@ -543,11 +545,8 @@ impl CardBehaviorAction {
                     let card_instance = resources.token_instances.get(card_instance_id).context("Tried to replace a card that does not exist")?;
                     let location = card_instance.location;
                     let owner = card_instance.owner;
-
-                    //let queue = resources.destroy_card(*card_instance_id, communicator).await?;
-                    todo!(); // tokens::card_behaviors::trigger_all_card_behaviors(queue, owner, state, communicator).await?;
-                    //let queue = resources.create_card(&replacement, location, owner, communicator).await?;
-                    todo!(); // tokens::card_behaviors::trigger_all_card_behaviors(queue, owner, state, communicator).await?;
+                    state.create_token(replacement, owner, location);
+                    state.destroy_token(this, *card_instance_id);
                 }
 
                 CardBehaviorResult::Ok
@@ -560,7 +559,7 @@ impl CardBehaviorAction {
             CardBehaviorAction::Destroy { target } => {
                 if let Ok(cards) = target.evaluate(context, resources) {
                     for card in cards {
-                        resources.destroy_token(card, communicator).await?;
+                        state.destroy_token(this, card);
                     }
                 }
                 CardBehaviorResult::Ok

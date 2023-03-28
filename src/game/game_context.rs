@@ -11,6 +11,7 @@ use color_eyre::Result;
 
 pub mod context_keys {
     pub const OWNER: &str = "owner";
+    pub const PLAYER: &str = "player";
     pub const TOKEN_INSTANCE: &str = "token_instance";
     pub const EQUIP_TARGET: &str = "equip_target";
     pub const EQUIPPING_ITEM: &str = "equipping_item";
@@ -24,6 +25,8 @@ pub mod context_keys {
     pub const SELECTED_TOKEN: &str = "selected_token";
     pub const IS_COUNTER_ATTACK: &str = "is_counter_attack";
     pub const EFFECT_DAMAGE: &str = "effect_damage";
+    pub const DRAWN_CARD: &str = "drawn_card";
+    pub const CREATING_CARD: &str = "created_card";
 }
 
 #[derive(Clone, PartialEq, Debug)]

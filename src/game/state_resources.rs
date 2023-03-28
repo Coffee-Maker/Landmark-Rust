@@ -101,36 +101,36 @@ impl StateResources {
         Ok(())
     }
 
-    pub async fn create_token(&mut self, id: &str, location: LocationId, owner: PlayerId, communicator: &mut GameCommunicator) -> Result<()> {
-        let card_instance_id = TokenInstanceId(fastrand::u64(..));
+    pub async fn create_token(&mut self, id: &str, location: LocationId, owner: PlayerId, communicator: &mut GameCommunicator) -> Result<TokenInstanceId> {
+        let token_instance_id = TokenInstanceId(fastrand::u64(..));
 
         let loc = self.locations
             .get_mut(&location)
             .context("Tried to create a card to a location that does not exist")?;
 
-        let mut card = match (*CARD_REGISTRY.lock().await).instance_card(&id, card_instance_id, location, owner) {
+        let mut card = match (*CARD_REGISTRY.lock().await).instance_card(&id, token_instance_id, location, owner) {
             Ok(card) => card,
             Err(e) => {
                 eprintln!("{e}");
                 return Err(e);
             }
         };
-        card.instance_id = card_instance_id;
+        card.instance_id = token_instance_id;
         card.location = location;
 
         communicator.send_game_instruction(InstructionToClient::CreateToken {
             card_data: card.clone(),
-            instance_id: card_instance_id,
+            instance_id: token_instance_id,
             player_id: owner,
             location_id: loc.get_location_id()
         }).await?;
 
         communicator.send_game_instruction(InstructionToClient::UpdateBehaviors { card_data: card.clone() }).await?;
 
-        self.token_instances.insert(card_instance_id, card);
-        loc.add_card(card_instance_id)?;
+        self.token_instances.insert(token_instance_id, card);
+        loc.add_card(token_instance_id)?;
 
-        Ok(())
+        Ok(token_instance_id)
     }
 
     pub async fn destroy_token(&mut self, token_instance_id: TokenInstanceId, communicator: &mut GameCommunicator) -> Result<()> {
@@ -265,18 +265,18 @@ impl StateResources {
         return Ok(allow)
     }
 
-    pub async fn set_current_turn(&mut self, player_id: PlayerId, communicator: &mut GameCommunicator) -> Result<()> {
+    pub async fn set_current_turn(&mut self, player_id: PlayerId, state: &mut StateMachine, communicator: &mut GameCommunicator) -> Result<()> {
         self.current_turn = player_id;
         self.round += 1;
         communicator.send_game_instruction(InstructionToClient::PassTurn { player_id }).await?;
-        self.start_turn(communicator).await?;
+        self.start_turn(state, communicator).await?;
         Ok(())
     }
 
-    pub async fn start_turn(mut self: &mut Self, communicator: &mut GameCommunicator) -> Result<()> {
+    pub async fn start_turn(mut self: &mut Self, state: &mut StateMachine, communicator: &mut GameCommunicator) -> Result<()> {
         let thaum = self.round.div_ceil(2);
         Player::set_thaum(self.current_turn, self, thaum + 10, communicator).await?;
-        Player::draw_card(self.current_turn, self, communicator).await?;
+        state.draw_card(self.current_turn);
 
         // Units recover their base defense
         let mut cards = self.token_instances.values_mut().collect::<Vec<&mut TokenInstance>>();
@@ -312,14 +312,6 @@ impl StateResources {
         }
 
         communicator.send_game_instruction(InstructionToClient::UpdateData { card_data: hero.clone() }).await?;
-        Ok(())
-    }
-
-    pub async fn player_pass_turn(&mut self, data: &str, communicator: &mut GameCommunicator) -> Result<()> {
-        self.set_current_turn(
-            if self.current_turn == PlayerId::Player1 { PlayerId::Player2 } else { PlayerId::Player1 },
-            communicator
-        ).await?;
         Ok(())
     }
 }

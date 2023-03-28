@@ -7,6 +7,7 @@ use crate::game::cards::token_deserializer::TokenCategory;
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::id_types::{TokenInstanceId, LocationId, PlayerId};
 use crate::game::instruction::InstructionToClient;
+use crate::game::new_state_machine::StateMachine;
 use crate::game::state_resources::StateResources;
 
 #[derive(Clone)]
@@ -111,21 +112,7 @@ impl Player {
         Ok(())
     }
 
-    pub async fn draw_card(player_id: PlayerId, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<()> {
-        let player_deck = resources.get_player(player_id).deck;
-        let player_hand = resources.get_player(player_id).hand;
-        let card = resources.locations.get(&player_deck).unwrap().get_card();
-
-        match card {
-            None => {
-                communicator.send_game_instruction(InstructionToClient::EndGame { winner: player_id.opponent() }).await?;
-                return Err(eyre!("Ran out of tokens, game concluded"))
-            }
-            Some(card_key) => {
-                resources.move_token(card_key, player_hand, None, communicator).await?;
-            }
-        }
-
-        Ok(())
+    pub fn draw_card(&self, state: &mut StateMachine) {
+        state.draw_card(self.id);
     }
 }

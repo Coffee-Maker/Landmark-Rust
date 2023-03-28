@@ -19,4 +19,4 @@ health = 1
 
     [[behavior.action]]
     then = "replace"
-    with = { target = "this", replacement = "water_golem" } # Needs further implementation
+    with = { target = "this", replacement = "water_golem" }

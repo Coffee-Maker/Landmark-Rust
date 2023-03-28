@@ -99,7 +99,7 @@ pub async fn game_service(websocket: WebSocketStream<TcpStream>) -> Result<()> {
                     }
                 }
                 if cancel == false {
-                    resources.player_pass_turn(data, &mut communicator).await?;
+                    resources.set_current_turn(resources.current_turn.opponent(), &mut state, &mut communicator).await?;
                 }
                 Ok(())
             },

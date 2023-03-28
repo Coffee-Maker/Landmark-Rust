@@ -55,8 +55,9 @@ pub async fn trigger_card_behaviors(card_instance_id: TokenInstanceId, trigger_n
         }
 
         if successful_triggers.len() > 0 {
-            for action in &behavior.actions {
+            for action in behavior.actions.iter().rev() {
                 let result= action.run(context, resources, state, communicator).await?;
+                // Todo: Do something with result
             }
         }
     }
