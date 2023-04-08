@@ -23,7 +23,7 @@ types = ["specter"]
     [[behavior.trigger]]
     when = "owned:will_be_summoned" # or: when = "owned:not_this:will_be_summoned"
     # and = { check = "ownership", with = { ownership = "this" }} # or
-    # or, alternatively, will_be_summoned does not get triggered on the card that has not yet been summoned? Might make more sense.
+    # or, alternatively, will_be_summoned does not get triggered on the token that has not yet been summoned? Might make more sense.
     #and = { check = "not_this" }
 
     [[behavior.action]]

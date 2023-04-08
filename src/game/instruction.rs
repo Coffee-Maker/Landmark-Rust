@@ -2,7 +2,7 @@ use async_recursion::async_recursion;
 use color_eyre::Result;
 
 use crate::game::animation_presets::AnimationPreset;
-use crate::game::cards::card_instance::TokenInstance;
+use crate::game::tokens::token_instance::TokenInstance;
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::id_types::{TokenInstanceId, LocationId, PlayerId, PromptInstanceId, ServerInstanceId};
 use crate::game::player::Player;
@@ -25,7 +25,7 @@ pub enum InstructionToClient {
         to: LocationId,
     },
     CreateToken {
-        card_data: TokenInstance,
+        token_data: TokenInstance,
         instance_id: TokenInstanceId,
         location_id: LocationId,
         player_id: PlayerId,
@@ -37,7 +37,7 @@ pub enum InstructionToClient {
         location: LocationId,
     },
     Destroy {
-        card: TokenInstanceId,
+        token: TokenInstanceId,
     },
     AddPrompt {
         prompt_instance_id: PromptInstanceId,
@@ -47,19 +47,19 @@ pub enum InstructionToClient {
         prompt_instance_id: PromptInstanceId,
     },
     UpdateData {
-        card_data: TokenInstance,
+        token_data: TokenInstance,
     },
     UpdateBehaviors {
-        card_data: TokenInstance,
+        token_data: TokenInstance,
     },
     Animate {
-        card: TokenInstanceId,
+        token: TokenInstanceId,
         location: LocationId,
         duration: f32,
         preset: AnimationPreset,
     },
     Reveal {
-        card: TokenInstanceId,
+        token: TokenInstanceId,
     },
     EndGame {
         winner: PlayerId
@@ -100,7 +100,7 @@ impl InstructionToClient {
                 )
             }
             InstructionToClient::CreateToken {
-                card_data: token_data,
+                token_data,
                 instance_id,
                 location_id,
                 player_id,
@@ -108,7 +108,7 @@ impl InstructionToClient {
                 format!(
                     "create_token|{}{}{}{}{}",
                     Tag::U64(4).build()?,
-                    Tag::CardInstanceData(token_data).build()?,
+                    Tag::TokenInstanceData(token_data).build()?,
                     Tag::TokenInstanceId(instance_id).build()?,
                     Tag::Player(player_id).build()?,
                     Tag::LocationId(location_id).build()?,
@@ -125,8 +125,8 @@ impl InstructionToClient {
                 prompt_type,
             } => {
                 let bind_target = match prompt_type {
-                    PromptType::SelectCard(card_id) => card_id.0.to_string(),
-                    PromptType::AttackCard(card_id) => card_id.0.to_string(),
+                    PromptType::SelectToken(token_id) => token_id.0.to_string(),
+                    PromptType::AttackToken(token_id) => token_id.0.to_string(),
                     PromptType::SelectFieldSlot(location_id) => location_id.0.to_string(),
                 };
                 format!("add_prompt|{}{}{}{:?}", Tag::U64(3).build()?, Tag::PromptInstanceId(prompt_instance_id).build()?, Tag::String(bind_target).build()?, Tag::String(prompt_type.to_string()).build()?)
@@ -136,17 +136,17 @@ impl InstructionToClient {
             } => {
                 format!("remove_prompt|{}{}", Tag::U64(1).build()?, Tag::PromptInstanceId(prompt_instance_id).build()?)
             }
-            InstructionToClient::UpdateData { card_data } => {
-                format!("update_data|{}{}{}", Tag::U64(2).build()?, Tag::TokenInstanceId(card_data.instance_id).build()?, Tag::CardInstanceData(card_data).build()?)
+            InstructionToClient::UpdateData { token_data } => {
+                format!("update_data|{}{}{}", Tag::U64(2).build()?, Tag::TokenInstanceId(token_data.instance_id).build()?, Tag::TokenInstanceData(token_data).build()?)
             }
-            InstructionToClient::UpdateBehaviors { card_data } => {
-                format!("update_behaviors|{}{}{}", Tag::U64(2).build()?, Tag::TokenInstanceId(card_data.instance_id).build()?, Tag::CardBehaviors(card_data).build()?)
+            InstructionToClient::UpdateBehaviors { token_data } => {
+                format!("update_behaviors|{}{}{}", Tag::U64(2).build()?, Tag::TokenInstanceId(token_data.instance_id).build()?, Tag::TokenBehaviors(token_data).build()?)
             }
-            InstructionToClient::Animate { card, location, duration, preset } => {
-                format!("animate|{}{}{}{}{}", Tag::U64(4).build()?, Tag::TokenInstanceId(card).build()?, Tag::LocationId(location).build()?, Tag::F32(duration).build()?, Tag::String(preset.to_string()).build()?)
+            InstructionToClient::Animate { token, location, duration, preset } => {
+                format!("animate|{}{}{}{}{}", Tag::U64(4).build()?, Tag::TokenInstanceId(token).build()?, Tag::LocationId(location).build()?, Tag::F32(duration).build()?, Tag::String(preset.to_string()).build()?)
             }
-            InstructionToClient::Reveal { card } => {
-                format!("reveal|{}{}", Tag::U64(1).build()?, Tag::TokenInstanceId(card).build()?)
+            InstructionToClient::Reveal { token } => {
+                format!("reveal|{}{}", Tag::U64(1).build()?, Tag::TokenInstanceId(token).build()?)
             }
             InstructionToClient::EndGame { winner } => {
                 format!("end_game|{}{}", Tag::U64(1).build()?, Tag::Player(winner).build()?)

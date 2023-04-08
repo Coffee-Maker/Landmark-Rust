@@ -1,8 +1,8 @@
 use color_eyre::eyre::ContextCompat;
 use color_eyre::Result;
-use crate::game::cards::token_deserializer::{TokenData, TokenCategory};
+use crate::game::tokens::token_deserializer::{TokenData, TokenCategory};
 
-use crate::game::cards::card_instance::TokenInstance;
+use crate::game::tokens::token_instance::TokenInstance;
 use crate::game::prompts::PromptType;
 use crate::game::id_types::{TokenInstanceId, LocationId, PlayerId, PromptInstanceId, ServerInstanceId};
 
@@ -11,9 +11,9 @@ pub enum Tag {
     U64(u64),
     F32(f32),
     String(String),
-    CardInstanceData(TokenInstance),
-    CardData(TokenData),
-    CardBehaviors(TokenInstance),
+    TokenInstanceData(TokenInstance),
+    TokenData(TokenData),
+    TokenBehaviors(TokenInstance),
     ServerInstanceId(ServerInstanceId),
     TokenInstanceId(TokenInstanceId),
     LocationId(LocationId),
@@ -28,7 +28,7 @@ impl Tag {
             Tag::U64(t) => format!("{}", t),
             Tag::F32(t) => format!("{}", t),
             Tag::String(c) => format!("{}", c),
-            Tag::CardInstanceData(c) => {
+            Tag::TokenInstanceData(c) => {
                 let id = c.token_data.id.clone();
                 let name = format!("{} ({})", c.token_data.name.clone(), c.token_data.cost);
                 let description = c.token_data.description.clone().unwrap_or("".to_string()); // Todo: Is this the correct method for a default?
@@ -36,17 +36,17 @@ impl Tag {
                 let mut health = c.current_stats.health;
                 let mut attack = c.current_stats.attack;
                 let mut defense = c.current_stats.defense;
-                let types = c.card_types.join(", ");
-                let card_category = match &c.token_data.token_category {
+                let types = c.token_types.join(", ");
+                let token_category = match &c.token_data.token_category {
                     TokenCategory::Hero { .. } => 0,
                     TokenCategory::Landscape { .. } => 1,
                     TokenCategory::Unit { .. } => 2,
                     TokenCategory::Item => 3,
                     TokenCategory::Command => 4,
                 };
-                format!("{id};;{card_category};;{name};;{description};;{cost};;{health};;{defense};;{attack};;{types};;")
+                format!("{id};;{token_category};;{name};;{description};;{cost};;{health};;{defense};;{attack};;{types};;")
             },
-            Tag::CardData(c) => {
+            Tag::TokenData(c) => {
                 let id = c.id.clone();
                 let name = format!("{} ({})", c.name, c.cost);
                 let description = c.description.clone().unwrap_or(" ".to_string()); // Todo: Is this the correct method for a default?
@@ -55,7 +55,7 @@ impl Tag {
                 let mut attack = 0;
                 let mut defense = 0;
                 let types = c.types.join(", ");
-                let card_category = match c.token_category {
+                let token_category = match c.token_category {
                     TokenCategory::Hero { health: h , defense: d } =>  {
                         health = h;
                         defense = d;
@@ -71,9 +71,9 @@ impl Tag {
                     TokenCategory::Item => 3,
                     TokenCategory::Command => 4,
                 };
-                format!("{id};;{card_category};;{name};;{description};;{cost};;{health};;{defense};;{attack};;{types};;")
+                format!("{id};;{token_category};;{name};;{description};;{cost};;{health};;{defense};;{attack};;{types};;")
             },
-            Tag::CardBehaviors(c) => {
+            Tag::TokenBehaviors(c) => {
                 let mut string_to_send = String::new();
                 for behavior in c.behaviors {
                     if let Some(name) = behavior.name {

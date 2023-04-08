@@ -23,5 +23,5 @@ slots = [
     and = { check = "type_contains", with = { target = { context = { key = "token_instance" } }, types = ["creature"] } }
 
     [[behavior.action]]
-    then = "draw_card"
+    then = "draw_token"
     with = { target = "owner" }

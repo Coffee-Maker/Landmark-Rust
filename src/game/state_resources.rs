@@ -3,13 +3,13 @@ use std::collections::{HashMap, VecDeque};
 use color_eyre::eyre::{Context, ContextCompat, eyre};
 use color_eyre::Result;
 use futures_util::FutureExt;
-use crate::CARD_REGISTRY;
+use crate::TOKEN_REGISTRY;
 use crate::game::animation_presets::AnimationPreset;
 
 use crate::game::board::Board;
-use crate::game::cards;
-use crate::game::cards::token_deserializer::{TokenBehavior, CardBehaviorAction, CardBehaviorTriggerWhenName, TokenCategory};
-use crate::game::cards::card_instance::TokenInstance;
+use crate::game::tokens;
+use crate::game::tokens::token_deserializer::{TokenBehavior, TokenBehaviorAction, TokenBehaviorTriggerWhenName, TokenCategory};
+use crate::game::tokens::token_instance::TokenInstance;
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::id_types::{TokenInstanceId, location_ids, LocationId, PlayerId, ServerInstanceId};
 use crate::game::instruction::InstructionToClient;
@@ -39,8 +39,8 @@ impl StateResources {
             locations: HashMap::new(),
             token_instances: HashMap::new(),
             round: 0,
-            player_1: Player::new(PlayerId::Player1, location_ids::PLAYER_1_DECK, location_ids::PLAYER_1_HAND),
-            player_2: Player::new(PlayerId::Player2, location_ids::PLAYER_2_DECK, location_ids::PLAYER_2_HAND),
+            player_1: Player::new(PlayerId::Player1, location_ids::PLAYER_1_SET, location_ids::PLAYER_1_HAND),
+            player_2: Player::new(PlayerId::Player2, location_ids::PLAYER_2_SET, location_ids::PLAYER_2_HAND),
             current_turn: if fastrand::bool() { PlayerId::Player1 } else { PlayerId::Player2 },
             board: Board::new(),
             location_counter: 0,
@@ -59,23 +59,23 @@ impl StateResources {
         communicator.send_game_instruction(InstructionToClient::ClearLocation { location }).await
     }
 
-    pub async fn move_token(&mut self, card_instance_id: TokenInstanceId, to: LocationId, animation: Option<AnimationPreset>, communicator: &mut GameCommunicator) -> Result<()> {
-        let mut card_instance = self.token_instances.get_mut(&card_instance_id).context("Card instance not found while attempting a move")?;
-        let from = card_instance.location;
-        let from_instance = self.locations.get_mut(&from).context("Tried to move card from a location that doesn't exist")?;
-        from_instance.remove_card(card_instance_id);
-        card_instance.location = to.clone();
+    pub async fn move_token(&mut self, token_instance_id: TokenInstanceId, to: LocationId, animation: Option<AnimationPreset>, communicator: &mut GameCommunicator) -> Result<()> {
+        let mut token_instance = self.token_instances.get_mut(&token_instance_id).context("Token instance not found while attempting a move")?;
+        let from = token_instance.location;
+        let from_instance = self.locations.get_mut(&from).context("Tried to move token from a location that doesn't exist")?;
+        from_instance.remove_token(token_instance_id);
+        token_instance.location = to.clone();
 
         let to_instance = self
             .locations
             .get_mut(&to)
-            .context("Tried to move a card to a location that doesn't exist")?;
-        to_instance.add_card(card_instance_id)?;
+            .context("Tried to move a token to a location that doesn't exist")?;
+        to_instance.add_token(token_instance_id)?;
         let to_id = to_instance.get_location_id();
 
         if let Some(animation) = animation {
             communicator.send_game_instruction(InstructionToClient::Animate {
-                card: card_instance_id,
+                token: token_instance_id,
                 location: to,
                 duration: 0.5,
                 preset: animation,
@@ -83,7 +83,7 @@ impl StateResources {
         }
 
         communicator.send_game_instruction(InstructionToClient::MoveToken {
-            token: card_instance_id,
+            token: token_instance_id,
             to: to_id
         }).await?;
 
@@ -92,9 +92,9 @@ impl StateResources {
         let new_location = location_ids::identify_location(to)?;
 
         if old_location.is_field() == false && new_location.is_field() {
-            card_instance.hidden = false;
-            if card_instance.hidden == false {
-                communicator.send_game_instruction(InstructionToClient::Reveal { card: card_instance_id }).await?;
+            token_instance.hidden = false;
+            if token_instance.hidden == false {
+                communicator.send_game_instruction(InstructionToClient::Reveal { token: token_instance_id }).await?;
             }
         }
 
@@ -106,29 +106,29 @@ impl StateResources {
 
         let loc = self.locations
             .get_mut(&location)
-            .context("Tried to create a card to a location that does not exist")?;
+            .context("Tried to create a token to a location that does not exist")?;
 
-        let mut card = match (*CARD_REGISTRY.lock().await).instance_card(&id, token_instance_id, location, owner) {
-            Ok(card) => card,
+        let mut token = match (*TOKEN_REGISTRY.lock().await).instance_token(&id, token_instance_id, location, owner) {
+            Ok(token) => token,
             Err(e) => {
                 eprintln!("{e}");
                 return Err(e);
             }
         };
-        card.instance_id = token_instance_id;
-        card.location = location;
+        token.instance_id = token_instance_id;
+        token.location = location;
 
         communicator.send_game_instruction(InstructionToClient::CreateToken {
-            card_data: card.clone(),
+            token_data: token.clone(),
             instance_id: token_instance_id,
             player_id: owner,
             location_id: loc.get_location_id()
         }).await?;
 
-        communicator.send_game_instruction(InstructionToClient::UpdateBehaviors { card_data: card.clone() }).await?;
+        communicator.send_game_instruction(InstructionToClient::UpdateBehaviors { token_data: token.clone() }).await?;
 
-        self.token_instances.insert(token_instance_id, card);
-        loc.add_card(token_instance_id)?;
+        self.token_instances.insert(token_instance_id, token);
+        loc.add_token(token_instance_id)?;
 
         Ok(token_instance_id)
     }
@@ -160,24 +160,24 @@ impl StateResources {
         }
     }
 
-    pub async fn show_selectable_cards(&self, communicator: &mut GameCommunicator) -> Result<PromptCallback> {
+    pub async fn show_selectable_tokens(&self, communicator: &mut GameCommunicator) -> Result<PromptCallback> {
         let mut callback = PromptCallback::new(|prompt, context, state, resources, communicator| {
             let new_callback = match prompt.prompt {
-                PromptType::SelectCard(token_instance_id) => {
+                PromptType::SelectToken(token_instance_id) => {
                     context.insert(context_keys::SELECTED_TOKEN, ContextValue::TokenInstanceId(token_instance_id));
-                    Some(resources.show_attackable_cards(communicator).now_or_never().context("Failed to run async function")??)
+                    Some(resources.show_attackable_tokens(communicator).now_or_never().context("Failed to run async function")??)
                 }
                 _ => None
             };
             Ok(PromptCallbackResult::End(new_callback))
         }, true);
-        for (id, card) in &self.token_instances {
-            if card.owner != self.current_turn || location_ids::identify_location(card.location)?.is_field() == false {
+        for (id, token) in &self.token_instances {
+            if token.owner != self.current_turn || location_ids::identify_location(token.location)?.is_field() == false {
                 continue;
             }
 
             callback.add_prompt(PromptProfile {
-                prompt_type: PromptType::SelectCard(*id),
+                prompt_type: PromptType::SelectToken(*id),
                 value: false,
                 owner: self.current_turn,
             })
@@ -185,10 +185,10 @@ impl StateResources {
         Ok(callback)
     }
 
-    pub async fn show_attackable_cards(&mut self, communicator: &mut GameCommunicator) -> Result<PromptCallback> {
+    pub async fn show_attackable_tokens(&mut self, communicator: &mut GameCommunicator) -> Result<PromptCallback> {
         let mut callback = PromptCallback::new(|prompt, context, state, resources, communicator| {
             match prompt.prompt {
-                PromptType::AttackCard(token_instance_id) => {
+                PromptType::AttackToken(token_instance_id) => {
                     let attacker = context.get(context_keys::SELECTED_TOKEN)?.as_token_instance_id()?;
                     state.attack(attacker, token_instance_id, false);
                 }
@@ -201,27 +201,27 @@ impl StateResources {
             return Ok(callback)
         }
 
-        let mut cards: Vec<&TokenInstance> = self.token_instances.values().collect();
-        cards.retain(|c| location_ids::identify_location(c.location).unwrap().is_field_of(self.current_turn.opponent()));
+        let mut tokens: Vec<&TokenInstance> = self.token_instances.values().collect();
+        tokens.retain(|c| location_ids::identify_location(c.location).unwrap().is_field_of(self.current_turn.opponent()));
 
-        let front_most_row = cards.iter().fold(100, |current_min, card| {
-            location_ids::get_slot_position(card.location, &self.board).unwrap().z.min(current_min)
+        let front_most_row = tokens.iter().fold(100, |current_min, token| {
+            location_ids::get_slot_position(token.location, &self.board).unwrap().z.min(current_min)
         });
 
-        cards.retain(|c| {
+        tokens.retain(|c| {
             location_ids::get_slot_position(c.location, &self.board).unwrap().z == front_most_row
         });
 
-        if cards.len() == 0 {
+        if tokens.len() == 0 {
             // No more defending tokens, hero should be attackable
             let hero_slot = self.board.get_side(self.current_turn.opponent()).hero;
-            cards.push(self.token_instances.get(
-                &self.locations.get(&hero_slot).context("Hero slot does not exist")?.get_card().context("Hero was not found in hero slot")?).context("Hero does not exist")?);
+            tokens.push(self.token_instances.get(
+                &self.locations.get(&hero_slot).context("Hero slot does not exist")?.get_token().context("Hero was not found in hero slot")?).context("Hero does not exist")?);
         }
 
-        for card in cards{
+        for token in tokens{
             callback.add_prompt(PromptProfile {
-                prompt_type: PromptType::AttackCard(card.instance_id),
+                prompt_type: PromptType::AttackToken(token.instance_id),
                 value: false,
                 owner: self.current_turn,
             })
@@ -230,7 +230,7 @@ impl StateResources {
     }
 
     pub async fn can_player_summon_token(&self, token_instance_id: TokenInstanceId, to_location: LocationId, communicator: &mut GameCommunicator) -> Result<bool> {
-        let token_instance = self.token_instances.get(&token_instance_id).context("Unable to find card")?;
+        let token_instance = self.token_instances.get(&token_instance_id).context("Unable to find token")?;
         let token_location = token_instance.location.clone();
 
         if token_instance.location == to_location {
@@ -276,23 +276,23 @@ impl StateResources {
     pub async fn start_turn(mut self: &mut Self, state: &mut StateMachine, communicator: &mut GameCommunicator) -> Result<()> {
         let thaum = self.round.div_ceil(2);
         Player::set_thaum(self.current_turn, self, thaum + 10, communicator).await?;
-        state.draw_card(self.current_turn);
+        state.draw_token(self.current_turn);
 
         // Units recover their base defense
-        let mut cards = self.token_instances.values_mut().collect::<Vec<&mut TokenInstance>>();
-        cards.retain(|c| location_ids::identify_location(c.location).unwrap().is_field());
-        cards.retain(|c| c.owner == self.current_turn);
-        for unit in cards {
+        let mut tokens = self.token_instances.values_mut().collect::<Vec<&mut TokenInstance>>();
+        tokens.retain(|c| location_ids::identify_location(c.location).unwrap().is_field());
+        tokens.retain(|c| c.owner == self.current_turn);
+        for unit in tokens {
             unit.current_stats.defense = unit.base_stats.defense;
             communicator.send_game_instruction(InstructionToClient::Animate {
-                card: unit.instance_id,
+                token: unit.instance_id,
                 location: unit.location,
                 duration: 0.2,
                 preset: AnimationPreset::Raise,
             }).await?;
-            communicator.send_game_instruction(InstructionToClient::UpdateData { card_data: unit.clone() }).await?;
+            communicator.send_game_instruction(InstructionToClient::UpdateData { token_data: unit.clone() }).await?;
             communicator.send_game_instruction(InstructionToClient::Animate {
-                card: unit.instance_id,
+                token: unit.instance_id,
                 location: unit.location,
                 duration: 0.2,
                 preset: AnimationPreset::EaseInOut,
@@ -311,7 +311,7 @@ impl StateResources {
             _ => {}
         }
 
-        communicator.send_game_instruction(InstructionToClient::UpdateData { card_data: hero.clone() }).await?;
+        communicator.send_game_instruction(InstructionToClient::UpdateData { token_data: hero.clone() }).await?;
         Ok(())
     }
 }

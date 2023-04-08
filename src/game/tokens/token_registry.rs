@@ -5,15 +5,15 @@ use color_eyre::eyre::{ContextCompat, eyre};
 use color_eyre::Result;
 use walkdir::WalkDir;
 
-use crate::game::cards::token_deserializer::{TokenData, TokenCategory};
-use crate::game::cards::card_instance::{TokenInstance, UnitStats};
+use crate::game::tokens::token_deserializer::{TokenData, TokenCategory};
+use crate::game::tokens::token_instance::{TokenInstance, UnitStats};
 use crate::game::id_types::{TokenInstanceId, LocationId, PlayerId};
 
-pub struct CardRegistry {
-    pub card_registry: HashMap<String, &'static TokenData>,
+pub struct TokenRegistry {
+    pub token_registry: HashMap<String, &'static TokenData>,
 }
 
-impl CardRegistry {
+impl TokenRegistry {
     pub fn from_directory(path: &str) -> Result<Self> {
         println!("Loading tokens from {}", path);
 
@@ -34,13 +34,13 @@ impl CardRegistry {
             );
         }
 
-        Ok(CardRegistry {
-            card_registry: registry
+        Ok(TokenRegistry {
+            token_registry: registry
         })
     }
 
-    pub fn instance_card(&self, id: &str, instance_id: TokenInstanceId, location: LocationId, owner: PlayerId) -> Result<TokenInstance> {
-        let token = self.card_registry.get(id).context(eyre!("Token not found: {}", id))?;
+    pub fn instance_token(&self, id: &str, instance_id: TokenInstanceId, location: LocationId, owner: PlayerId) -> Result<TokenInstance> {
+        let token = self.token_registry.get(id).context(eyre!("Token not found: {}", id))?;
 
         let mut health = 0;
         let mut defense = 0;
@@ -70,12 +70,13 @@ impl CardRegistry {
             cost: token.cost,
             base_stats: UnitStats { health, defense, attack },
             current_stats: UnitStats { health, defense, attack },
-            card_types: token.types.clone(),
+            token_types: token.types.clone(),
+            equipped_items: Vec::new(),
             hidden: true
         })
     }
 
     pub fn get_data(&self, id: &str) -> Result<&TokenData> {
-        Ok(*self.card_registry.get(id).context(eyre!("Card not found: {}", id))?)
+        Ok(*self.token_registry.get(id).context(eyre!("Token not found: {}", id))?)
     }
 }

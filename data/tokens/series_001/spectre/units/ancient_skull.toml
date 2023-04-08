@@ -8,7 +8,7 @@ types = ["husk", "specter"]
 
 [[behavior]]
     name = "Animate"
-    description = "When a {{card:phantom}} is equipped to this card, replace it with a {{card:phantom_skull}}"
+    description = "When a {{token:phantom}} is equipped to this token, replace it with a {{token:phantom_skull}}"
 
     [[behavior.trigger]]
     when = "this:will_equip"

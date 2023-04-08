@@ -15,13 +15,13 @@ use tokio_tungstenite::WebSocketStream;
 
 use crate::game::animation_presets::AnimationPreset;
 use crate::game::board::Board;
-use crate::game::card_collection::CardCollection;
-use crate::game::card_slot::CardSlot;
-use crate::game::cards::token_behaviors;
-use crate::game::cards::token_behaviors::CardBehaviorResult;
-use crate::game::cards::token_deserializer::{CardBehaviorTriggerWhenName, TokenCategory};
-use crate::game::cards::card_instance::TokenInstance;
-use crate::game::cards::card_registry::CardRegistry;
+use crate::game::token_collection::TokenCollection;
+use crate::game::token_slot::TokenSlot;
+use crate::game::tokens::token_behaviors;
+use crate::game::tokens::token_behaviors::TokenBehaviorResult;
+use crate::game::tokens::token_deserializer::{TokenBehaviorTriggerWhenName, TokenCategory};
+use crate::game::tokens::token_instance::TokenInstance;
+use crate::game::tokens::token_registry::TokenRegistry;
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::id_types::{location_ids, LocationId, PlayerId, PromptInstanceId, ServerInstanceId, TokenInstanceId};
 use crate::game::id_types::PlayerId::{Player1, Player2};
@@ -80,8 +80,8 @@ pub async fn game_service(websocket: WebSocketStream<TcpStream>) -> Result<()> {
                 state = StateMachine::new();
                 state.start_game(data, &mut resources, &mut communicator).await
             },
-            "move_card" => {
-                let token_instance_id = get_tag("card", data)?.parse::<TokenInstanceId>()?;
+            "move_token" => {
+                let token_instance_id = get_tag("token", data)?.parse::<TokenInstanceId>()?;
                 let target_location_id = get_tag("location", data)?.parse::<LocationId>()?;
                 if resources.can_player_summon_token(token_instance_id, target_location_id, &mut communicator).await? {
                     state.summon_token(token_instance_id, target_location_id);
@@ -120,44 +120,9 @@ pub async fn game_service(websocket: WebSocketStream<TcpStream>) -> Result<()> {
             callback.create_instructions(&mut communicator).await?;
             current_callback = Some(callback);
         } else {
-            let callback = resources.show_selectable_cards(&mut communicator).await?;
+            let callback = resources.show_selectable_tokens(&mut communicator).await?;
             callback.create_instructions(&mut communicator).await?;
             current_callback = Some(callback);
         }
     }
 }
-
-// pub async fn player_moved_card(&mut self, data: &str, communicator: &mut GameCommunicator) -> Result<Option<PromptCallback>> {
-//     let card_id = get_tag("card", data)?.parse::<TokenInstanceId>()?;
-//     let target_location_id = get_tag("location", data)?.parse::<LocationId>()?;
-//
-//     let card_instance = self.resources.card_instances.get(&card_id).context("Unable to find card")?;
-//     let card_location = card_instance.location.clone();
-//
-//     let new_player_thaum = self.get_player(card_instance.owner).thaum - card_instance.cost;
-//     let player = card_instance.owner;
-//
-//     let queue = self.resources.pre_move_card(card_id, target_location_id, self.current_turn, communicator).await?;
-//     let behavior_result = card_behaviors::trigger_all_card_behaviors(
-//         queue,
-//         self.current_turn,
-//         self,
-//         communicator
-//     ).await?;
-//
-//     if behavior_result == CardBehaviorResult::Cancel {
-//         communicator.send_game_instruction( InstructionToClient::MoveCard { card: card_id, to: card_location }).await?;
-//         return Ok(None)
-//     }
-//
-//     self.get_player_mut(player).set_thaum(new_player_thaum, communicator).await?;
-//
-//     let queue = self.resources.move_card(card_id, target_location_id, self.current_turn, None, communicator).await?;
-//     card_behaviors::trigger_all_card_behaviors(
-//         queue,
-//         self.current_turn,
-//         self,
-//         communicator
-//     ).await?;
-//     Ok(None)
-// }

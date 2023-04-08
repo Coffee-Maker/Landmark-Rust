@@ -2,7 +2,7 @@ use color_eyre::eyre::{ContextCompat, eyre};
 use color_eyre::Result;
 use crate::game::animation_presets::AnimationPreset;
 use crate::game::board::Board;
-use crate::game::cards::token_deserializer::TokenCategory;
+use crate::game::tokens::token_deserializer::TokenCategory;
 
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::id_types::{TokenInstanceId, LocationId, PlayerId};
@@ -14,18 +14,18 @@ use crate::game::state_resources::StateResources;
 pub struct Player {
     pub thaum: u32,
     pub id: PlayerId,
-    pub deck: LocationId,
+    pub set: LocationId,
     pub hand: LocationId,
     pub hero: TokenInstanceId,
     pub landscape: TokenInstanceId,
 }
 
 impl Player {
-    pub fn new(id: PlayerId, deck: LocationId, hand: LocationId) -> Self {
+    pub fn new(id: PlayerId, set: LocationId, hand: LocationId) -> Self {
         Self {
             id,
             thaum: 0,
-            deck,
+            set,
             hand,
             hero: TokenInstanceId(0),
             landscape: TokenInstanceId(0)
@@ -51,24 +51,24 @@ impl Player {
         }).await
     }
 
-    pub async fn populate_deck(player_id: PlayerId, data: &str, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<()> {
+    pub async fn populate_set(player_id: PlayerId, data: &str, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<()> {
         let player = resources.get_player(player_id);
-        let player_deck = player.deck;
+        let player_set = player.set;
         for split in data.split(',') {
-            resources.create_token(split, player_deck, player_id, communicator).await?;
+            resources.create_token(split, player_set, player_id, communicator).await?;
         }
 
         Ok(())
     }
     
-    pub async fn prepare_deck(player_id: PlayerId, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<()> {
-        let player_deck = resources.get_player(player_id).deck;
+    pub async fn prepare_set(player_id: PlayerId, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<()> {
+        let player_set = resources.get_player(player_id).set;
 
         // Find hero and landscape
-        let heroes = resources.locations.get(&player_deck).context("ya nan")?.get_cards().iter()
-            .filter_map(|&card_key| {
-                if let Some(card_instance) = resources.token_instances.get(&card_key) && matches!(card_instance.token_data.token_category, TokenCategory::Hero { .. }){
-                    Some(card_key)
+        let heroes = resources.locations.get(&player_set).context("ya nan")?.get_tokens().iter()
+            .filter_map(|&token_key| {
+                if let Some(token_instance) = resources.token_instances.get(&token_key) && matches!(token_instance.token_data.token_category, TokenCategory::Hero { .. }){
+                    Some(token_key)
                 } else {
                     None
                 }
@@ -82,14 +82,14 @@ impl Player {
                 let hero_location = resources.board.get_side(player_id).hero;
                 resources.move_token(hero, hero_location, None, communicator).await?;
             }
-            0 => return Err(eyre!("No hero found in deck")),
-            _ => return Err(eyre!("Found more than one hero in deck")),
+            0 => return Err(eyre!("No hero found in set")),
+            _ => return Err(eyre!("Found more than one hero in set")),
         }
 
-        let landscapes = resources.locations.get(&player_deck).context("ya nan")?.get_cards().iter()
-            .filter_map(|&card_key| {
-                if let Some(card_instance) = resources.token_instances.get(&card_key) && matches!(card_instance.token_data.token_category, TokenCategory::Landscape { .. }) {
-                    Some(card_key)
+        let landscapes = resources.locations.get(&player_set).context("ya nan")?.get_tokens().iter()
+            .filter_map(|&token_key| {
+                if let Some(token_instance) = resources.token_instances.get(&token_key) && matches!(token_instance.token_data.token_category, TokenCategory::Landscape { .. }) {
+                    Some(token_key)
                 } else {
                     None
                 }
@@ -103,16 +103,16 @@ impl Player {
                 let landscape_location = resources.board.get_side(player_id).landscape;
                 resources.move_token(landscape, landscape_location, None, communicator).await?;
             }
-            0 => return Err(eyre!("No hero found in deck")),
-            _ => return Err(eyre!("Found more than one hero in deck")),
+            0 => return Err(eyre!("No hero found in set")),
+            _ => return Err(eyre!("Found more than one hero in set")),
         }
 
-        resources.locations.get_mut(&player_deck).context("Deck was not found")?.shuffle();
+        resources.locations.get_mut(&player_set).context("Set was not found")?.shuffle();
 
         Ok(())
     }
 
-    pub fn draw_card(&self, state: &mut StateMachine) {
-        state.draw_card(self.id);
+    pub fn draw_token(&self, state: &mut StateMachine) {
+        state.draw_token(self.id);
     }
 }

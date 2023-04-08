@@ -13,7 +13,7 @@
 [[behavior]]
     id = "generic.hidden"
     name = "Hidden"
-    description = "If a {{keyword:unit}} on the field is hidden it is not revealed to your opponent until it attacks, defends or is revealed by a card. Hidden {{keyword:unit}}s can be attacked and can have {{keyword:item}}s equipped to them. The equipped {{keyword:item}}s are also not shown to the opponent, but the fact that they are equipped is."
+    description = "If a {{keyword:unit}} on the field is hidden it is not revealed to your opponent until it attacks, defends or is revealed by a token. Hidden {{keyword:unit}}s can be attacked and can have {{keyword:item}}s equipped to them. The equipped {{keyword:item}}s are also not shown to the opponent, but the fact that they are equipped is."
 
     [[behavior.trigger]]
     when = "this:will_attack"

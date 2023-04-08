@@ -1,7 +1,7 @@
 ﻿pub mod board;
-pub mod card_slot;
-pub mod card_collection;
-pub mod cards;
+pub mod token_slot;
+pub mod token_collection;
+pub mod tokens;
 pub mod game_communicator;
 pub mod game_state;
 pub mod instruction;

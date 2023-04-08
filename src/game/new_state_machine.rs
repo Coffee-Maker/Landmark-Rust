@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 use color_eyre::eyre::eyre;
-use crate::game::card_collection::CardCollection;
-use crate::game::card_slot::CardSlot;
-use crate::game::cards::token_deserializer::{CardBehaviorTriggerWhenName as TriggerState, CardBehaviorTriggerWhenName};
+use crate::game::token_collection::TokenCollection;
+use crate::game::token_slot::TokenSlot;
+use crate::game::tokens::token_deserializer::{TokenBehaviorTriggerWhenName as TriggerState, TokenBehaviorTriggerWhenName};
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::id_types::{location_ids, LocationId, TokenInstanceId};
 use crate::game::id_types::PlayerId;
@@ -14,12 +14,12 @@ use crate::game::game_context::{GameContext, ContextValue, context_keys};
 use color_eyre::Result;
 use crate::game::animation_presets::AnimationPreset;
 use crate::game::board::Board;
-use crate::game::cards::token_behaviors;
+use crate::game::tokens::token_behaviors;
 use crate::game::instruction::InstructionToClient;
 use crate::game::location::Location;
 use crate::game::player::Player;
 
-pub type CardBehaviorTriggerWithContext<'a> = (TriggerState, &'a mut GameContext);
+pub type TokenBehaviorTriggerWithContext<'a> = (TriggerState, &'a mut GameContext);
 
 pub struct StateMachine {
     pub state_transition_groups: VecDeque<StateTransitionGroup>,
@@ -58,36 +58,36 @@ impl StateMachine {
         let mut insert_location = |location: Box<ThreadSafeLocation>| {
             resources.locations.insert(location.get_location_id(), location);
         };
-        insert_location(Box::new(CardCollection::new(location_ids::PLAYER_1_DECK)));
-        insert_location(Box::new(CardCollection::new(location_ids::PLAYER_1_HAND)));
-        insert_location(Box::new(CardCollection::new(location_ids::PLAYER_2_DECK)));
-        insert_location(Box::new(CardCollection::new(location_ids::PLAYER_2_HAND)));
-        insert_location(Box::new(CardSlot::new(location_ids::PLAYER_1_HERO)));
-        insert_location(Box::new(CardSlot::new(location_ids::PLAYER_2_HERO)));
-        insert_location(Box::new(CardSlot::new(location_ids::PLAYER_1_LANDSCAPE)));
-        insert_location(Box::new(CardSlot::new(location_ids::PLAYER_2_LANDSCAPE)));
-        insert_location(Box::new(CardCollection::new(location_ids::PLAYER_1_GRAVEYARD)));
-        insert_location(Box::new(CardCollection::new(location_ids::PLAYER_2_GRAVEYARD)));
+        insert_location(Box::new(TokenCollection::new(location_ids::PLAYER_1_SET)));
+        insert_location(Box::new(TokenCollection::new(location_ids::PLAYER_1_HAND)));
+        insert_location(Box::new(TokenCollection::new(location_ids::PLAYER_2_SET)));
+        insert_location(Box::new(TokenCollection::new(location_ids::PLAYER_2_HAND)));
+        insert_location(Box::new(TokenSlot::new(location_ids::PLAYER_1_HERO)));
+        insert_location(Box::new(TokenSlot::new(location_ids::PLAYER_2_HERO)));
+        insert_location(Box::new(TokenSlot::new(location_ids::PLAYER_1_LANDSCAPE)));
+        insert_location(Box::new(TokenSlot::new(location_ids::PLAYER_2_LANDSCAPE)));
+        insert_location(Box::new(TokenCollection::new(location_ids::PLAYER_1_GRAVEYARD)));
+        insert_location(Box::new(TokenCollection::new(location_ids::PLAYER_2_GRAVEYARD)));
 
         resources.reset_game(communicator).await?;
 
-        // Populate decks
-        let deck_1_string = get_tag("deck1", data)?;
-        let deck_2_string = get_tag("deck2", data)?;
-        Player::populate_deck(PlayerId::Player1, &deck_1_string[..], resources, communicator).await?;
-        Player::populate_deck(PlayerId::Player2, &deck_2_string[..], resources, communicator).await?;
+        // Populate sets
+        let set_1_string = get_tag("set1", data)?;
+        let set_2_string = get_tag("set2", data)?;
+        Player::populate_set(PlayerId::Player1, &set_1_string[..], resources, communicator).await?;
+        Player::populate_set(PlayerId::Player2, &set_2_string[..], resources, communicator).await?;
 
         Player::set_thaum(PlayerId::Player1, resources, 0, communicator).await?;
-        Player::prepare_deck(PlayerId::Player1, resources, communicator).await?;
+        Player::prepare_set(PlayerId::Player1, resources, communicator).await?;
 
         Player::set_thaum(PlayerId::Player2, resources, 0, communicator).await?;
-        Player::prepare_deck(PlayerId::Player2, resources, communicator).await?;
+        Player::prepare_set(PlayerId::Player2, resources, communicator).await?;
 
         Board::prepare_landscapes(resources, communicator).await?;
 
         for _ in 0..5 {
-            self.draw_card(PlayerId::Player1);
-            self.draw_card(PlayerId::Player2);
+            self.draw_token(PlayerId::Player1);
+            self.draw_token(PlayerId::Player2);
         }
 
         resources.set_current_turn(resources.current_turn, self, communicator).await?;
@@ -171,21 +171,25 @@ impl StateMachine {
 
     pub fn create_token(&mut self, token_id: &str, owner: PlayerId, location: LocationId) {
         let mut transition_group = StateTransitionGroup::new();
-        transition_group.context.insert(context_keys::CREATING_CARD, ContextValue::String(token_id.to_string()));
+        transition_group.context.insert(context_keys::CREATING_TOKEN, ContextValue::String(token_id.to_string()));
         transition_group.context.insert(context_keys::PLAYER, ContextValue::PlayerId(owner));
         transition_group.context.insert(context_keys::TO_LOCATION, ContextValue::LocationId(location));
         transition_group.states.push_back(TriggerState::HasBeenCreated);
         self.state_transition_groups.push_front(transition_group);
     }
 
-    pub fn draw_card(&mut self, player: PlayerId) {
+    pub fn draw_token(&mut self, player: PlayerId) {
         let mut transition_group = StateTransitionGroup::new();
         transition_group.context.insert(context_keys::PLAYER, ContextValue::PlayerId(player));
-        transition_group.states.push_back(TriggerState::WillDrawCard);
+        transition_group.states.push_back(TriggerState::WillDrawToken);
         transition_group.states.push_back(TriggerState::CheckCancel);
-        transition_group.states.push_back(TriggerState::HasDrawnCard);
+        transition_group.states.push_back(TriggerState::HasDrawnToken);
         transition_group.states.push_back(TriggerState::HasBeenDrawn);
         self.state_transition_groups.push_front(transition_group);
+    }
+
+    pub fn equip_item(&mut self, unit: TokenInstanceId, item: TokenInstanceId) {
+
     }
 }
 
@@ -217,11 +221,11 @@ impl StateTransitionGroup {
             }
 
             TriggerState::HasBeenCreated => {
-                let token_id = self.context.get(context_keys::CREATING_CARD)?.as_string()?;
+                let token_id = self.context.get(context_keys::CREATING_TOKEN)?.as_string()?;
                 let location = self.context.get(context_keys::TO_LOCATION)?.as_location_id()?;
                 let owner = self.context.get(context_keys::PLAYER)?.as_player_id()?;
                 let instance_id = resources.create_token(token_id, location, owner, communicator).await?;
-                self.context.insert(context_keys::CREATING_CARD, ContextValue::TokenInstanceId(instance_id));
+                self.context.insert(context_keys::CREATING_TOKEN, ContextValue::TokenInstanceId(instance_id));
                 TriggerResult::Ok
             }
 
@@ -256,7 +260,7 @@ impl StateTransitionGroup {
                 let defender_id = self.context.get(context_keys::DEFENDER)?.as_token_instance_id()?;
                 let defender = resources.token_instances.get_mut(&defender_id).unwrap();
                 communicator.send_game_instruction(InstructionToClient::Animate {
-                    card: attacker_id,
+                    token: attacker_id,
                     location: defender.location,
                     duration: 0.5,
                     preset: AnimationPreset::Attack,
@@ -275,7 +279,7 @@ impl StateTransitionGroup {
                     state.attack(defender_id, attacker_id, true);
                 }
 
-                communicator.send_game_instruction(InstructionToClient::UpdateData { card_data: defender.clone() }).await?;
+                communicator.send_game_instruction(InstructionToClient::UpdateData { token_data: defender.clone() }).await?;
 
                 TriggerResult::Ok
             }
@@ -294,7 +298,7 @@ impl StateTransitionGroup {
                     state.defeat(attacker_id, defender_id);
                 }
 
-                communicator.send_game_instruction(InstructionToClient::UpdateData { card_data: defender.clone() }).await?;
+                communicator.send_game_instruction(InstructionToClient::UpdateData { token_data: defender.clone() }).await?;
 
                 TriggerResult::Ok
             }
@@ -314,23 +318,23 @@ impl StateTransitionGroup {
                 TriggerResult::Ok
             }
 
-            TriggerState::WillDrawCard => {
+            TriggerState::WillDrawToken => {
                 TriggerResult::Ok
             }
-            TriggerState::HasDrawnCard => {
+            TriggerState::HasDrawnToken => {
                 let player_id = self.context.get(context_keys::PLAYER)?.as_player_id()?;
-                let player_deck = resources.get_player(player_id).deck;
+                let player_set = resources.get_player(player_id).set;
                 let player_hand = resources.get_player(player_id).hand;
-                let card = resources.locations.get(&player_deck).unwrap().get_card();
+                let token = resources.locations.get(&player_set).unwrap().get_token();
 
-                match card {
+                match token {
                     None => {
                         communicator.send_game_instruction(InstructionToClient::EndGame { winner: player_id.opponent() }).await?;
                         return Err(eyre!("Ran out of tokens, game concluded"))
                     }
-                    Some(card_key) => {
-                        resources.move_token(card_key, player_hand, None, communicator).await?;
-                        self.context.insert(context_keys::DRAWN_CARD, ContextValue::TokenInstanceId(card_key));
+                    Some(token_key) => {
+                        resources.move_token(token_key, player_hand, None, communicator).await?;
+                        self.context.insert(context_keys::DRAWN_TOKEN, ContextValue::TokenInstanceId(token_key));
                     }
                 }
 
@@ -351,9 +355,9 @@ impl StateTransitionGroup {
         } else {
             self.context.insert(context_keys::OWNER, self.context.get(&*who_is_owner(next.clone())?)?.clone());
         }
-        for token_id in resources.board.get_cards_in_play(resources) {
+        for token_id in resources.board.get_tokens_in_play(resources) {
             self.context.insert(context_keys::ACTION_THIS, ContextValue::TokenInstanceId(token_id));
-            token_behaviors::trigger_card_behaviors(
+            token_behaviors::trigger_token_behaviors(
                 token_id,
                 next.clone(),
                 &mut self.context,
@@ -399,16 +403,16 @@ fn what_is_this(state: TriggerState) -> Result<String> {
         TriggerState::HasEquipped => context_keys::EQUIP_TARGET,
         TriggerState::WillBeEquipped => context_keys::EQUIP_TARGET,
         TriggerState::HasBeenEquipped => context_keys::EQUIPPING_ITEM,
-        TriggerState::HasBeenDrawn => context_keys::DRAWN_CARD,
-        TriggerState::HasBeenCreated => context_keys::CREATING_CARD,
+        TriggerState::HasBeenDrawn => context_keys::DRAWN_TOKEN,
+        TriggerState::HasBeenCreated => context_keys::CREATING_TOKEN,
         _ => return Err(eyre!("Can't specify what this is for state: {state:?}")),
     }.to_string())
 }
 
 fn who_is_owner(state: TriggerState) -> Result<String> {
     Ok(match state {
-        TriggerState::WillDrawCard => context_keys::PLAYER,
-        TriggerState::HasDrawnCard => context_keys::PLAYER,
+        TriggerState::WillDrawToken => context_keys::PLAYER,
+        TriggerState::HasDrawnToken => context_keys::PLAYER,
         _ => return Err(eyre!("Can't specify what owner is for state: {state:?}")),
     }.to_string())
 }

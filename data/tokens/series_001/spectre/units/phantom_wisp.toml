@@ -14,7 +14,7 @@ health = 2
 #
 #[[behavior]]
 #    name = "Become not fetus"
-#    description = "After this {{keyword:unit}} has been deployed for 3 of your turns, replace this {{keyword:unit}} with a {{card:phantom}}."
+#    description = "After this {{keyword:unit}} has been deployed for 3 of your turns, replace this {{keyword:unit}} with a {{token:phantom}}."
 #
 #    [[behavior.trigger]]
 #    when = "owner:turn_started"
@@ -29,5 +29,5 @@ health = 2
 #    #and = { check = "counter_equals", with = { target = "this", counter = "spectral_transition", value = 0 } }
 #
 #    [[behavior.action]]
-#    then = "create_card"
+#    then = "create_token"
 #    with = { location = "owner_hand", id = "phantom" }

@@ -2,12 +2,12 @@
 # Triggers
 
 ## Terms:
-- This card: The card with the behavior
-- Activator: The card that triggered the behavior (What was summoned, what declared an attack, etc...)
+- This token: The token with the behavior
+- Activator: The token that triggered the behavior (What was summoned, what declared an attack, etc...)
 
 
-    With all that was discussed, I wanted to further explore common 'match' cases, such as card types (Not category) and location.
-    Consider the 'location'. We could use the term 'in' to specify a location constraint for THIS card (Not the activator).
+    With all that was discussed, I wanted to further explore common 'match' cases, such as token types (Not category) and location.
+    Consider the 'location'. We could use the term 'in' to specify a location constraint for THIS token (Not the activator).
 
 ```toml
 in = "graveyard"
@@ -21,7 +21,7 @@ and = { "counter:haunting:greater_than" = 3}
 This is the modifier that can optionally be placed before a trigger type.
 
 - owned
-  - owner - A potential alias to be used primarily with triggers that aren't associated with a card (turn start, draw card, etc...)
+  - owner - A potential alias to be used primarily with triggers that aren't associated with a token (turn start, draw token, etc...)
 - opponent
 - this
 - either
@@ -50,12 +50,12 @@ This is the modifier that can optionally be placed before a trigger type.
   - has_been_defeated
 
 
-    Note: Defeat refers to a card being destroyed during an attack
+    Note: Defeat refers to a token being destroyed during an attack
 
 
 - Misc
   - was_drawn
-  - draw_card
+  - draw_token
   - turn_end
   - turn_start
     - turn_started - Potential replacement? Maybe sounds better
@@ -72,12 +72,12 @@ This is the modifier that can optionally be placed before a trigger type.
 - replace - Destroy target unit and replace it with a new one
 - replace_many - Destroy a group of units and replace it with a new one
 - replace_many_individual - Replace a group of units with a new group of units (One for each unit destroyed)
-- add_types - Add some types to a card. This card could be this card, or it could be some other card.
+- add_types - Add some types to a token. This token could be this token, or it could be some other token.
 - modify_defense - Change the defense of targeted units by the amount specified (+1, -5, =2, etc.)
 - modify_health - ^ but health
 - modify_attack - ^ but attack
-- transfer_types - Append the types of one card onto another
-- destroy - Destroy the selected card (May not be a unit! It could be an item, too)
+- transfer_types - Append the types of one token onto another
+- destroy - Destroy the selected token (May not be a unit! It could be an item, too)
 - summon - Summon a new unit to the field. This could be summoning an existing unit or a completely new one.
     
     

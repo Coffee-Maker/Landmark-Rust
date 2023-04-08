@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use color_eyre::Result;
 use color_eyre::eyre::{ContextCompat, eyre};
-use crate::game::card_slot::CardSlot;
-use crate::game::cards::token_deserializer::{TokenCategory, SlotPosition};
+use crate::game::token_slot::TokenSlot;
+use crate::game::tokens::token_deserializer::{TokenCategory, SlotPosition};
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::id_types::PlayerId::{Player1, Player2};
 use crate::game::instruction::InstructionToClient;
@@ -30,20 +30,20 @@ impl Board {
         BoardSide::add_landscape_slots(PlayerId::Player2, resources, communicator).await
     }
 
-    pub fn get_cards_in_play(&self, resources: &StateResources) -> Vec<TokenInstanceId> {
-        let mut cards = Vec::new();
-        cards.append(&mut self.side_1.get_cards_in_play(resources).clone());
-        cards.append(&mut self.side_2.get_cards_in_play(resources).clone());
+    pub fn get_tokens_in_play(&self, resources: &StateResources) -> Vec<TokenInstanceId> {
+        let mut tokens = Vec::new();
+        tokens.append(&mut self.side_1.get_tokens_in_play(resources).clone());
+        tokens.append(&mut self.side_2.get_tokens_in_play(resources).clone());
 
-        cards
+        tokens
     }
     
-    pub fn get_relevant_landscape(&self, resources: &StateResources, card: TokenInstanceId) -> Option<LocationId> {
-        let card = resources.token_instances.get(&card)?;
+    pub fn get_relevant_landscape(&self, resources: &StateResources, token: TokenInstanceId) -> Option<LocationId> {
+        let token = resources.token_instances.get(&token)?;
 
-        return if self.side_1.field.contains(&card.location) {
+        return if self.side_1.field.contains(&token.location) {
             Some(self.side_1.landscape)
-        } else if self.side_2.field.contains(&card.location) {
+        } else if self.side_2.field.contains(&token.location) {
             Some(self.side_2.landscape)
         } else {
             None
@@ -88,23 +88,23 @@ impl BoardSide {
         }
     }
     
-    pub fn get_cards_in_play(&self, resources: &StateResources) -> Vec<TokenInstanceId> {
-        let mut cards = Vec::new();
-        cards.append(&mut resources.locations.get(&self.hero).unwrap().get_cards().clone());
-        cards.append(&mut resources.locations.get(&self.landscape).unwrap().get_cards().clone());
+    pub fn get_tokens_in_play(&self, resources: &StateResources) -> Vec<TokenInstanceId> {
+        let mut tokens = Vec::new();
+        tokens.append(&mut resources.locations.get(&self.hero).unwrap().get_tokens().clone());
+        tokens.append(&mut resources.locations.get(&self.landscape).unwrap().get_tokens().clone());
         for loc in self.field.iter() {
-            cards.append(&mut resources.locations.get(loc).unwrap().get_cards().clone());
+            tokens.append(&mut resources.locations.get(loc).unwrap().get_tokens().clone());
         }
-        cards.append(&mut resources.locations.get(&self.graveyard).unwrap().get_cards().clone());
+        tokens.append(&mut resources.locations.get(&self.graveyard).unwrap().get_tokens().clone());
 
-        cards
+        tokens
     }
 
     pub async fn add_landscape_slots(owner: PlayerId, resources: &mut StateResources, communicator: &mut GameCommunicator) -> Result<()> {
         let side = resources.board.get_side_mut(owner);
         let location = resources.locations.get(&side.landscape).context("Landscape location does not exist")?;
-        let card_instance = resources.token_instances.get(&location.get_card().context("Landscape card was not provided")?).context(format!("Card in landscape slot for {} does not exist", owner))?;
-        let landscape = &card_instance.token_data.token_category;
+        let token_instance = resources.token_instances.get(&location.get_token().context("Landscape token was not provided")?).context(format!("Token in landscape slot for {} does not exist", owner))?;
+        let landscape = &token_instance.token_data.token_category;
 
         match landscape {
             TokenCategory::Landscape { slots } => {
@@ -120,7 +120,7 @@ impl BoardSide {
                     }).await?;
                     i += 1;
 
-                    let new_loc = CardSlot::new(location_id);
+                    let new_loc = TokenSlot::new(location_id);
                     side.field.push(location_id);
                     side.field_slot_positions.push(*slot);
                     resources.locations.insert(location_id, Box::new(new_loc));

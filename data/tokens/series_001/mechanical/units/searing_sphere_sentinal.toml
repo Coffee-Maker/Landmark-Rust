@@ -8,13 +8,13 @@ defense = 3
 
 [[behavior]]
 name = "Spare Parts"
-description = "When this Unit is summoned, draw a card"
+description = "When this Unit is summoned, draw a token"
 
     [[behavior.trigger]]
     when = "this:has_been_summoned"
 
     [[behavior.action]]
-    then = "draw_card"
+    then = "draw_token"
     with = { target = "owner" }
 
 [[behavior]]

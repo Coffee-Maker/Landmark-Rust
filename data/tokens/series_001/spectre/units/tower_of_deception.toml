@@ -14,7 +14,7 @@ defense = 6
 ##    and = [
 ##        { check = "not_equal", with = { target = "context", compare_to = "target" } },
 ##        { check = "adjacent", with = { target = "context", adjacent_to = "this" } } # Not sure what to do for target here
-##    ] # or maybe: context.card
+##    ] # or maybe: context.token
 #
 #    [[behavior.action]]
 #    then = "add_behavior"

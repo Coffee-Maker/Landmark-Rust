@@ -2,7 +2,7 @@
 use color_eyre::eyre::{ContextCompat, eyre};
 
 use crate::game::board::Board;
-use crate::game::cards::token_deserializer::TokenData;
+use crate::game::tokens::token_deserializer::TokenData;
 use crate::game::id_types::{TokenInstanceId, PlayerId, LocationId};
 use crate::game::player::Player;
 use crate::game::state_resources::StateResources;
@@ -25,8 +25,8 @@ pub mod context_keys {
     pub const SELECTED_TOKEN: &str = "selected_token";
     pub const IS_COUNTER_ATTACK: &str = "is_counter_attack";
     pub const EFFECT_DAMAGE: &str = "effect_damage";
-    pub const DRAWN_CARD: &str = "drawn_card";
-    pub const CREATING_CARD: &str = "created_card";
+    pub const DRAWN_TOKEN: &str = "drawn_token";
+    pub const CREATING_TOKEN: &str = "created_token";
 }
 
 #[derive(Clone, PartialEq, Debug)]

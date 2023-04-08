@@ -13,8 +13,8 @@ use crate::game::state_resources::StateResources;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PromptType {
-    SelectCard(TokenInstanceId),
-    AttackCard(TokenInstanceId),
+    SelectToken(TokenInstanceId),
+    AttackToken(TokenInstanceId),
     SelectFieldSlot(LocationId),
 }
 
@@ -22,8 +22,8 @@ pub enum PromptType {
 impl ToString for PromptType {
     fn to_string(&self) -> String {
         match self {
-            PromptType::SelectCard(_) => "SelectCard",
-            PromptType::AttackCard(_) => "AttackCard",
+            PromptType::SelectToken(_) => "SelectToken",
+            PromptType::AttackToken(_) => "AttackToken",
             PromptType::SelectFieldSlot(_) => "SelectFieldSlot",
         }.to_string()
     }
@@ -32,8 +32,8 @@ impl ToString for PromptType {
 impl PromptType {
     pub fn to_instruction_string(&self) -> String {
         match self {
-            PromptType::SelectCard(_) => "card_select",
-            PromptType::AttackCard(_) => "card_attack",
+            PromptType::SelectToken(_) => "token_select",
+            PromptType::AttackToken(_) => "token_attack",
             PromptType::SelectFieldSlot(_) => "slot_select"
         }.into()
     }

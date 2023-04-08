@@ -12,24 +12,24 @@ pub mod location_ids {
     use color_eyre::eyre::{ContextCompat, eyre};
     use color_eyre::Result;
     use crate::game::board::Board;
-    use crate::game::cards::token_deserializer::SlotPosition;
+    use crate::game::tokens::token_deserializer::SlotPosition;
 
     use crate::game::id_types::{LocationId, PlayerId};
     use crate::game::player::Player;
 
-    pub const PLAYER_1_DECK: LocationId = LocationId(100);
+    pub const PLAYER_1_SET: LocationId = LocationId(100);
     pub const PLAYER_1_HAND: LocationId = LocationId(101);
     pub const PLAYER_1_HERO: LocationId = LocationId(102);
     pub const PLAYER_1_LANDSCAPE: LocationId = LocationId(103);
     pub const PLAYER_1_GRAVEYARD: LocationId = LocationId(104);
-    pub const PLAYER_2_DECK: LocationId = LocationId(200);
+    pub const PLAYER_2_SET: LocationId = LocationId(200);
     pub const PLAYER_2_HAND: LocationId = LocationId(201);
     pub const PLAYER_2_HERO: LocationId = LocationId(202);
     pub const PLAYER_2_LANDSCAPE: LocationId = LocationId(203);
     pub const PLAYER_2_GRAVEYARD: LocationId = LocationId(204);
 
-    pub fn player_deck_location_id(player: PlayerId, index: u64) -> LocationId {
-        if player == PlayerId::Player1 { PLAYER_1_DECK } else { PLAYER_2_DECK }
+    pub fn player_set_location_id(player: PlayerId, index: u64) -> LocationId {
+        if player == PlayerId::Player1 { PLAYER_1_SET } else { PLAYER_2_SET }
     }
 
     pub fn player_hand_location_id(player: PlayerId, index: u64) -> LocationId {
@@ -69,13 +69,13 @@ pub mod location_ids {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum LocationIdentity {
-        Player1Deck,
+        Player1Set,
         Player1Hand,
         Player1Hero,
         Player1Landscape,
         Player1Graveyard,
         Player1Field,
-        Player2Deck,
+        Player2Set,
         Player2Hand,
         Player2Hero,
         Player2Landscape,
@@ -103,12 +103,12 @@ pub mod location_ids {
     pub fn identify_location(location_id: LocationId) -> Result<LocationIdentity> {
         Ok(match location_id {
             PLAYER_1_HAND => LocationIdentity::Player1Hand,
-            PLAYER_1_DECK => LocationIdentity::Player1Deck,
+            PLAYER_1_SET => LocationIdentity::Player1Set,
             PLAYER_1_HERO => LocationIdentity::Player1Hero,
             PLAYER_1_LANDSCAPE => LocationIdentity::Player1Landscape,
             PLAYER_1_GRAVEYARD => LocationIdentity::Player1Graveyard,
             PLAYER_2_HAND => LocationIdentity::Player2Hand,
-            PLAYER_2_DECK => LocationIdentity::Player2Deck,
+            PLAYER_2_SET => LocationIdentity::Player2Set,
             PLAYER_2_HERO => LocationIdentity::Player2Hero,
             PLAYER_2_LANDSCAPE => LocationIdentity::Player2Landscape,
             PLAYER_2_GRAVEYARD => LocationIdentity::Player2Graveyard,
