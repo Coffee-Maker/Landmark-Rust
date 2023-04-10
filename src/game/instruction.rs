@@ -52,6 +52,10 @@ pub enum InstructionToClient {
     UpdateBehaviors {
         token_data: TokenInstance,
     },
+    AddEquipmentSlot {
+        token: TokenInstanceId,
+        slot_location_id: LocationId
+    },
     Animate {
         token: TokenInstanceId,
         location: LocationId,
@@ -141,6 +145,9 @@ impl InstructionToClient {
             }
             InstructionToClient::UpdateBehaviors { token_data } => {
                 format!("update_behaviors|{}{}{}", Tag::U64(2).build()?, Tag::TokenInstanceId(token_data.instance_id).build()?, Tag::TokenBehaviors(token_data).build()?)
+            }
+            InstructionToClient::AddEquipmentSlot { token, slot_location_id } => {
+                format!("add_equipment_slot|{}{}{}", Tag::U64(2).build()?, Tag::TokenInstanceId(token).build()?, Tag::LocationId(slot_location_id).build()?)
             }
             InstructionToClient::Animate { token, location, duration, preset } => {
                 format!("animate|{}{}{}{}{}", Tag::U64(4).build()?, Tag::TokenInstanceId(token).build()?, Tag::LocationId(location).build()?, Tag::F32(duration).build()?, Tag::String(preset.to_string()).build()?)

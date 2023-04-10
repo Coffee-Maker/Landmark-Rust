@@ -1,7 +1,7 @@
 use color_eyre::Result;
 
 use crate::game::id_types::{TokenInstanceId, LocationId, ServerInstanceId};
-use crate::game::location::Location;
+use crate::game::locations::location::Location;
 
 pub struct TokenCollection {
     pub tokens: Vec<TokenInstanceId>,
@@ -39,6 +39,10 @@ impl Location for TokenCollection {
     }
 
     fn contains(&self, token: TokenInstanceId) -> bool { self.tokens.contains(&token) }
+
+    fn has_room(&self) -> bool {
+        true
+    }
 
     fn get_token(&self) -> Option<TokenInstanceId> {
         self.tokens.first().map(|o| o.to_owned())

@@ -81,6 +81,8 @@ pub mod location_ids {
         Player2Landscape,
         Player2Graveyard,
         Player2Field,
+        Player1ItemSlot,
+        Player2ItemSlot
     }
 
     impl LocationIdentity {
@@ -96,6 +98,13 @@ pub mod location_ids {
                 PlayerId::Player1 => self == &LocationIdentity::Player1Field,
                 PlayerId::Player2 => self == &LocationIdentity::Player2Field,
                 _ => false,
+            }
+        }
+
+        pub fn is_item_slot(&self) -> bool {
+            match self {
+                LocationIdentity::Player1ItemSlot | LocationIdentity::Player2ItemSlot => true,
+                _ => false
             }
         }
     }
@@ -117,6 +126,10 @@ pub mod location_ids {
                     LocationIdentity::Player1Field
                 } else if location_id.0 >= 2000 && location_id.0 < 3000 {
                     LocationIdentity::Player2Field
+                } else if location_id.0 >= 10000 && location_id.0 < 20000 {
+                    LocationIdentity::Player1ItemSlot
+                } else if location_id.0 >= 20000 && location_id.0 < 30000 {
+                    LocationIdentity::Player2ItemSlot
                 } else {
                     return Err(eyre!("Unable to identify location id: {}", location_id.0));
                 }

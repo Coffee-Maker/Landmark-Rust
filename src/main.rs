@@ -10,7 +10,7 @@ use tokio::sync::Mutex;
 use tokio_tungstenite::tungstenite::handshake::server::Request;
 use tokio_tungstenite::tungstenite::handshake::server::Response;
 
-use game::game_state;
+use game::game_service;
 use crate::game::tokens::token_deserializer::{TokenData, TokenBehaviorTriggerWhenActivator};
 use crate::game::tokens::token_registry::TokenRegistry;
 
@@ -66,7 +66,7 @@ async fn accept_connection(stream: TcpStream) {
             println!("No service type found");
         }
         ServiceType::Game => {
-            if let Err(e) = game_state::game_service(websocket).await {
+            if let Err(e) = game_service::game_service(websocket).await {
                 eprintln!("{:?}", e);
             }
         },

@@ -4,6 +4,17 @@ description = "A sword that resonates with the rhythm of battle, empowering its 
 cost = 2
 types = ["sword"]
 
-# [[behavior]]
-# name = "Melodic Strike"
-# description = "This unit gains +1 attack and defense for each successful attack made by friendly units this turn, including itself."
+[[behavior]]
+name = "Melodic Strike"
+description = "This unit gains +1 attack and defense for each successful attack made by friendly units this turn, including itself."
+
+    [[behavior.trigger]]
+    when = "owned:has_attacked"
+
+    [[behavior.action]]
+    then = "modify_attack"
+    with = { target = "equipping_unit", amount = 1 }
+
+    [[behavior.action]]
+    then = "modify_defense"
+    with = { target = "equipping_unit", amount = 1 }

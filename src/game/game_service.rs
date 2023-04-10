@@ -15,23 +15,21 @@ use tokio_tungstenite::WebSocketStream;
 
 use crate::game::animation_presets::AnimationPreset;
 use crate::game::board::Board;
-use crate::game::token_collection::TokenCollection;
-use crate::game::token_slot::TokenSlot;
+use crate::game::game_communicator::GameCommunicator;
+use crate::game::game_context::{ContextValue, GameContext};
+use crate::game::id_types::{location_ids, LocationId, PlayerId, PromptInstanceId, ServerInstanceId, TokenInstanceId};
+use crate::game::id_types::PlayerId::{Player1, Player2};
+use crate::game::instruction::InstructionToClient;
+use crate::game::new_state_machine::StateMachine;
+use crate::game::player::Player;
+use crate::game::prompts::{PromptCallback, PromptCallbackClosure, PromptCallbackResult, PromptInstance, PromptProfile, PromptType};
+use crate::game::state_resources::StateResources;
+use crate::game::tag::get_tag;
 use crate::game::tokens::token_behaviors;
 use crate::game::tokens::token_behaviors::TokenBehaviorResult;
 use crate::game::tokens::token_deserializer::{TokenBehaviorTriggerWhenName, TokenCategory};
 use crate::game::tokens::token_instance::TokenInstance;
 use crate::game::tokens::token_registry::TokenRegistry;
-use crate::game::game_communicator::GameCommunicator;
-use crate::game::id_types::{location_ids, LocationId, PlayerId, PromptInstanceId, ServerInstanceId, TokenInstanceId};
-use crate::game::id_types::PlayerId::{Player1, Player2};
-use crate::game::instruction::InstructionToClient;
-use crate::game::player::Player;
-use crate::game::prompts::{PromptCallback, PromptCallbackClosure, PromptInstance, PromptCallbackResult, PromptProfile, PromptType};
-use crate::game::state_resources::StateResources;
-use crate::game::tag::get_tag;
-use crate::game::game_context::{ContextValue, GameContext};
-use crate::game::new_state_machine::StateMachine;
 
 pub async fn game_service(websocket: WebSocketStream<TcpStream>) -> Result<()> {
     println!("Starting game service");
@@ -83,8 +81,19 @@ pub async fn game_service(websocket: WebSocketStream<TcpStream>) -> Result<()> {
             "move_token" => {
                 let token_instance_id = get_tag("token", data)?.parse::<TokenInstanceId>()?;
                 let target_location_id = get_tag("location", data)?.parse::<LocationId>()?;
-                if resources.can_player_summon_token(token_instance_id, target_location_id, &mut communicator).await? {
-                    state.summon_token(token_instance_id, target_location_id);
+                match resources.token_instances.get(&token_instance_id).context("Token to move not found")?.token_data.token_category {
+                    TokenCategory::Unit {..} => {
+                        if resources.can_player_summon_unit(token_instance_id, target_location_id, &mut communicator).await? {
+                            state.summon_token(token_instance_id, target_location_id);
+                        }
+                    },
+                    TokenCategory::Item {..} => {
+                        if resources.can_player_equip_item(token_instance_id, target_location_id, &mut communicator).await? {
+                            let equipping_unit_id = resources.equipment_slot_owners.get(&target_location_id).context("This location is not an equipment slot")?;
+                            state.equip_item(*equipping_unit_id, token_instance_id);
+                        }
+                    },
+                    _ => {}
                 }
                 Ok(())
             }

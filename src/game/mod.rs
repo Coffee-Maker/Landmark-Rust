@@ -1,11 +1,9 @@
 ﻿pub mod board;
-pub mod token_slot;
-pub mod token_collection;
 pub mod tokens;
 pub mod game_communicator;
-pub mod game_state;
+pub mod game_service;
 pub mod instruction;
-pub mod location;
+pub mod locations;
 pub mod player;
 pub mod tag;
 pub mod game_context;

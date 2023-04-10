@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 use color_eyre::Result;
 use color_eyre::eyre::{ContextCompat, eyre};
-use crate::game::token_slot::TokenSlot;
 use crate::game::tokens::token_deserializer::{TokenCategory, SlotPosition};
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::id_types::PlayerId::{Player1, Player2};
 use crate::game::instruction::InstructionToClient;
 use crate::game::state_resources::StateResources;
 
-use crate::game::game_state;
+use crate::game::game_service;
 use crate::game::id_types::{TokenInstanceId, location_ids, LocationId, PlayerId};
+use crate::game::locations::token_slot::TokenSlot;
 
 #[derive(Clone)]
 pub struct Board {

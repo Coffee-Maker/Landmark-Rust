@@ -1,8 +1,8 @@
 use color_eyre::eyre::eyre;
-use crate::game::location::Location;
 
 use color_eyre::Result;
 use crate::game::id_types::{TokenInstanceId, LocationId, ServerInstanceId};
+use crate::game::locations::location::Location;
 
 #[derive(Clone, Copy, Debug)]
 pub struct TokenSlot {
@@ -48,6 +48,10 @@ impl Location for TokenSlot {
     }
 
     fn contains(&self, token: TokenInstanceId) -> bool { Some(token) == self.token }
+
+    fn has_room(&self) -> bool {
+        self.token.is_none()
+    }
 
     fn get_token(&self) -> Option<TokenInstanceId> {
         match self.token {

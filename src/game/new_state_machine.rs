@@ -1,7 +1,5 @@
 use std::collections::VecDeque;
-use color_eyre::eyre::eyre;
-use crate::game::token_collection::TokenCollection;
-use crate::game::token_slot::TokenSlot;
+use color_eyre::eyre::{ContextCompat, eyre};
 use crate::game::tokens::token_deserializer::{TokenBehaviorTriggerWhenName as TriggerState, TokenBehaviorTriggerWhenName};
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::id_types::{location_ids, LocationId, TokenInstanceId};
@@ -16,7 +14,8 @@ use crate::game::animation_presets::AnimationPreset;
 use crate::game::board::Board;
 use crate::game::tokens::token_behaviors;
 use crate::game::instruction::InstructionToClient;
-use crate::game::location::Location;
+use crate::game::locations::token_collection::TokenCollection;
+use crate::game::locations::token_slot::TokenSlot;
 use crate::game::player::Player;
 
 pub type TokenBehaviorTriggerWithContext<'a> = (TriggerState, &'a mut GameContext);
@@ -189,7 +188,16 @@ impl StateMachine {
     }
 
     pub fn equip_item(&mut self, unit: TokenInstanceId, item: TokenInstanceId) {
+        let mut transition_group = StateTransitionGroup::new();
 
+        transition_group.context.insert(context_keys::EQUIP_TARGET, ContextValue::TokenInstanceId(unit));
+        transition_group.context.insert(context_keys::EQUIPPING_ITEM, ContextValue::TokenInstanceId(item));
+        transition_group.states.push_back(TriggerState::WillBeEquipped);
+        transition_group.states.push_back(TriggerState::WillEquip);
+        transition_group.states.push_back(TriggerState::CheckCancel);
+        transition_group.states.push_back(TriggerState::HasBeenEquipped);
+        transition_group.states.push_back(TriggerState::HasEquipped);
+        self.state_transition_groups.push_front(transition_group);
     }
 }
 
@@ -245,7 +253,11 @@ impl StateTransitionGroup {
             }
             TriggerState::HasBeenSummoned => {
                 let token = resources.token_instances.get(&self.context.get(context_keys::TOKEN_INSTANCE)?.as_token_instance_id()?).unwrap();
+                let cost = token.cost;
+                let token_instance_id = token.instance_id;
+                communicator.send_game_instruction(InstructionToClient::Reveal { token: token_instance_id }).await?;
                 Player::spend_thaum(token.owner, resources, token.cost, communicator).await?;
+                resources.add_equipment_slot(token_instance_id, communicator).await?;
                 TriggerResult::Ok
             }
 
@@ -343,6 +355,31 @@ impl StateTransitionGroup {
             TriggerState::HasBeenDrawn => {
                 TriggerResult::Ok
             }
+
+            TriggerState::WillBeEquipped => {
+                TriggerResult::Ok
+            }
+            TriggerState::WillEquip => {
+                TriggerResult::Ok
+            }
+            TriggerState::HasBeenEquipped => {
+                let unit = self.context.get(context_keys::EQUIP_TARGET)?.as_token_instance_id()?;
+                let item = self.context.get(context_keys::EQUIPPING_ITEM)?.as_token_instance_id()?;
+                let unit_equipment_slots = resources.token_instances.get_mut(&unit).context("Unable to find unit to equip to")?.equipment_slots.clone();
+                let item_instance = resources.token_instances.get_mut(&item).context("Unable to find unit to equip to")?;
+                let item_from_location = item_instance.location;
+                for slot in unit_equipment_slots {
+                    if resources.move_token(item, slot, None, communicator).await.is_err() {
+                        // Failed, try next slot
+                        continue;
+                    }
+                }
+
+                TriggerResult::Ok
+            }
+            TriggerState::HasEquipped => {
+                TriggerResult::Ok
+            }
             _ => TriggerResult::Ok
         });
 
@@ -356,6 +393,24 @@ impl StateTransitionGroup {
             self.context.insert(context_keys::OWNER, self.context.get(&*who_is_owner(next.clone())?)?.clone());
         }
         for token_id in resources.board.get_tokens_in_play(resources) {
+            // Process item triggers first
+            let items = resources.token_instances.get(&token_id).unwrap().equipment_slots
+                .iter()
+                .filter_map(|slot| resources.locations.get(slot).unwrap().get_token())
+                .collect::<Vec<TokenInstanceId>>();
+
+            for item in items {
+                self.context.insert(context_keys::ACTION_THIS, ContextValue::TokenInstanceId(item));
+                token_behaviors::trigger_token_behaviors(
+                    item,
+                    next.clone(),
+                    &mut self.context,
+                    state,
+                    resources,
+                    communicator).await?;
+            }
+
+
             self.context.insert(context_keys::ACTION_THIS, ContextValue::TokenInstanceId(token_id));
             token_behaviors::trigger_token_behaviors(
                 token_id,

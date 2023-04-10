@@ -71,7 +71,7 @@ impl TokenRegistry {
             base_stats: UnitStats { health, defense, attack },
             current_stats: UnitStats { health, defense, attack },
             token_types: token.types.clone(),
-            equipped_items: Vec::new(),
+            equipment_slots: Vec::new(),
             hidden: true
         })
     }

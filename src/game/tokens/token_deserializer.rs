@@ -22,6 +22,7 @@ use crate::game::game_context::{context_keys, GameContext};
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct TokenData {
+    #[serde(default)] pub nightly: bool,
     #[serde(skip_deserializing)] pub id: String,
     pub name: String,
     pub description: Option<String>,
@@ -313,6 +314,7 @@ pub enum UnitTarget {
     Find {
         filter: Box<TokenFilter>
     },
+    EquippingUnit,
     All,
     Context {
         key: String
@@ -322,11 +324,17 @@ pub enum UnitTarget {
 impl UnitTarget {
     pub fn evaluate(&self, context: &GameContext, resources: &StateResources) -> Result<Vec<TokenInstanceId>> {
         Ok(match self {
-            UnitTarget::This => vec!(context.get(context_keys::TOKEN_INSTANCE)?.as_token_instance_id()?),
+            UnitTarget::This => vec!(context.get(context_keys::ACTION_THIS)?.as_token_instance_id()?),
             UnitTarget::Find { filter } => {
                 let mut tokens = resources.token_instances.values().collect::<Vec<&TokenInstance>>();
                 filter.evaluate(&mut tokens, context, resources)?;
                 tokens.iter().map(|c| c.instance_id).collect::<Vec<TokenInstanceId>>()
+            }
+            UnitTarget::EquippingUnit => {
+                let this_id = context.get(context_keys::ACTION_THIS)?.as_token_instance_id()?;
+                let this_instance = resources.token_instances.get(&this_id).unwrap();
+                let equipping_unit = resources.equipment_slot_owners.get(&this_instance.location).context("Item is not in equipment slot")?;
+                vec!(*equipping_unit)
             }
             UnitTarget::All => todo!(),
             UnitTarget::Context { key } => {
@@ -347,10 +355,10 @@ impl Default for UnitTarget {
 #[serde(rename_all = "snake_case")]
 pub enum TokenTarget {
     This,
-    EquipTarget,
     Find {
         filter: TokenFilter
     },
+    EquippingUnit,
     Context {
         key: String
     }
@@ -359,13 +367,18 @@ pub enum TokenTarget {
 impl TokenTarget {
     pub fn evaluate(&self, context: &GameContext, resources: &StateResources) -> Result<Vec<TokenInstanceId>> {
         Ok(match self {
-            TokenTarget::This => vec!(context.get(context_keys::TOKEN_INSTANCE)?.as_token_instance_id()?),
-            TokenTarget::EquipTarget => todo!(),
+            TokenTarget::This => vec!(context.get(context_keys::ACTION_THIS)?.as_token_instance_id()?),
             TokenTarget::Find { filter } => {
                 let mut tokens = resources.token_instances.values().collect::<Vec<&TokenInstance>>();
                 filter.evaluate(&mut tokens, context, resources)?;
                 tokens.iter().map(|c| c.instance_id).collect::<Vec<TokenInstanceId>>()
             },
+            TokenTarget::EquippingUnit => {
+                let this_id = context.get(context_keys::ACTION_THIS)?.as_token_instance_id()?;
+                let this_instance = resources.token_instances.get(&this_id).unwrap();
+                let equipping_unit = resources.equipment_slot_owners.get(&this_instance.location).context("Item is not in equipment slot")?;
+                vec!(*equipping_unit)
+            }
             TokenTarget::Context { key } => vec!(context.get(key)?.as_token_instance_id()?),
         })
     }
@@ -552,10 +565,42 @@ impl TokenBehaviorAction {
                 TokenBehaviorResult::Ok
             },
             TokenBehaviorAction::AddTypes { target, types } => todo!(),
-            TokenBehaviorAction::ModifyAttack { target, amount } => todo!(),
-            TokenBehaviorAction::ModifyHealth { target, amount } => todo!(),
-            TokenBehaviorAction::ModifyDefense { target, amount } => todo!(),
-            TokenBehaviorAction::ModifyCost { target, amount } => todo!(),
+            TokenBehaviorAction::ModifyAttack { target, amount } => {
+                for target in target.evaluate(context, resources)? {
+                    let target_instance = resources.token_instances.get_mut(&target).unwrap();
+                    target_instance.current_stats.attack += amount;
+                    communicator.send_game_instruction(InstructionToClient::UpdateData { token_data: target_instance.clone() }).await?;
+                }
+                TokenBehaviorResult::Ok
+            },
+            TokenBehaviorAction::ModifyHealth { target, amount } => {
+                for target in target.evaluate(context, resources)? {
+                    let target_instance = resources.token_instances.get_mut(&target).unwrap();
+                    target_instance.current_stats.health += amount;
+                    communicator.send_game_instruction(InstructionToClient::UpdateData { token_data: target_instance.clone() }).await?;
+                }
+                TokenBehaviorResult::Ok
+            },
+            TokenBehaviorAction::ModifyDefense { target, amount }  => {
+                for target in target.evaluate(context, resources)? {
+                    let target_instance = resources.token_instances.get_mut(&target).unwrap();
+                    target_instance.current_stats.defense += amount;
+                    communicator.send_game_instruction(InstructionToClient::UpdateData { token_data: target_instance.clone() }).await?;
+                }
+                TokenBehaviorResult::Ok
+            },
+            TokenBehaviorAction::ModifyCost { target, amount } => {
+                for target in target.evaluate(context, resources)? {
+                    let target_instance = resources.token_instances.get_mut(&target).unwrap();
+                    if target_instance.cost as i32 + amount < 0 {
+                        target_instance.cost = 0;
+                    } else {
+                        target_instance.cost = (target_instance.cost as i32 + amount) as u32;
+                    }
+                    communicator.send_game_instruction(InstructionToClient::UpdateData { token_data: target_instance.clone() }).await?;
+                }
+                TokenBehaviorResult::Ok
+            },
             TokenBehaviorAction::Destroy { target } => {
                 if let Ok(tokens) = target.evaluate(context, resources) {
                     for token in tokens {

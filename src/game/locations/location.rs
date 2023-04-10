@@ -11,6 +11,7 @@ pub trait Location {
     fn shuffle(&mut self);
     
     fn contains(&self, token: TokenInstanceId) -> bool;
+    fn has_room(&self) -> bool;
     
     fn get_token(&self) -> Option<TokenInstanceId>;
     fn get_tokens(&self) -> Vec<TokenInstanceId>;

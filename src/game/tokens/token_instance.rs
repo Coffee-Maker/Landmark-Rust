@@ -13,7 +13,6 @@ use crate::game::tokens::token_deserializer::{TokenData, TokenBehavior};
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::id_types::{TokenInstanceId, LocationId, PlayerId, ServerInstanceId};
 use crate::game::state_resources::StateResources;
-use crate::game::token_slot::TokenSlot;
 
 #[derive(Clone, Debug)]
 pub struct TokenInstance {
@@ -25,7 +24,7 @@ pub struct TokenInstance {
     pub cost: u32,
     pub base_stats: UnitStats,
     pub current_stats: UnitStats,
-    pub equipped_items: Vec<TokenSlot>,
+    pub equipment_slots: Vec<LocationId>,
     pub token_types: Vec<String>,
     pub hidden: bool,
 }

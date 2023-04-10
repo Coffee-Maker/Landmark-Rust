@@ -13,10 +13,11 @@ use crate::game::tokens::token_instance::TokenInstance;
 use crate::game::game_communicator::GameCommunicator;
 use crate::game::id_types::{TokenInstanceId, location_ids, LocationId, PlayerId, ServerInstanceId};
 use crate::game::instruction::InstructionToClient;
-use crate::game::location::Location;
 use crate::game::new_state_machine::{StateMachine, StateTransitionGroup};
 use crate::game::player::Player;
 use crate::game::game_context::{context_keys, ContextValue, GameContext};
+use crate::game::locations::location::Location;
+use crate::game::locations::token_slot::TokenSlot;
 use crate::game::prompts::{PromptCallback, PromptInstance, PromptCallbackResult, PromptProfile, PromptType};
 use crate::game::tag::get_tag;
 
@@ -25,12 +26,14 @@ pub type ThreadSafeLocation = dyn Location + Send + Sync;
 pub struct StateResources {
     pub locations: HashMap<LocationId, Box<ThreadSafeLocation>>,
     pub token_instances: HashMap<TokenInstanceId, TokenInstance>,
+    pub equipment_slot_owners: HashMap<LocationId, TokenInstanceId>,
     pub round: u32,
     pub player_1: Player,
     pub player_2: Player,
     pub current_turn: PlayerId,
     pub board: Board,
-    location_counter: ServerInstanceId,
+    player_1_equipment_slot_counter: ServerInstanceId,
+    player_2_equipment_slot_counter: ServerInstanceId,
 }
 
 impl StateResources {
@@ -38,12 +41,14 @@ impl StateResources {
         Self {
             locations: HashMap::new(),
             token_instances: HashMap::new(),
+            equipment_slot_owners: HashMap::new(),
             round: 0,
             player_1: Player::new(PlayerId::Player1, location_ids::PLAYER_1_SET, location_ids::PLAYER_1_HAND),
             player_2: Player::new(PlayerId::Player2, location_ids::PLAYER_2_SET, location_ids::PLAYER_2_HAND),
             current_turn: if fastrand::bool() { PlayerId::Player1 } else { PlayerId::Player2 },
             board: Board::new(),
-            location_counter: 0,
+            player_1_equipment_slot_counter: 10000,
+            player_2_equipment_slot_counter: 20000,
         }
     }
 
@@ -87,17 +92,6 @@ impl StateResources {
             to: to_id
         }).await?;
 
-        // Check if a unit changed landscapes
-        let old_location = location_ids::identify_location(from)?;
-        let new_location = location_ids::identify_location(to)?;
-
-        if old_location.is_field() == false && new_location.is_field() {
-            token_instance.hidden = false;
-            if token_instance.hidden == false {
-                communicator.send_game_instruction(InstructionToClient::Reveal { token: token_instance_id }).await?;
-            }
-        }
-
         Ok(())
     }
 
@@ -131,6 +125,23 @@ impl StateResources {
         loc.add_token(token_instance_id)?;
 
         Ok(token_instance_id)
+    }
+
+    pub async fn add_equipment_slot(&mut self, unit: TokenInstanceId, communicator: &mut GameCommunicator) -> Result<()>{
+        let unit_instance = self.token_instances.get_mut(&unit).context("Failed to add equipment slot to a non-existent token")?;
+        let owner = unit_instance.owner;
+        let equipment_slot_id = if owner == PlayerId::Player1
+            { self.player_1_equipment_slot_counter += 1; self.player_1_equipment_slot_counter }
+            else
+            { self.player_2_equipment_slot_counter += 1; self.player_2_equipment_slot_counter };
+
+        let equipment_slot_id = LocationId(equipment_slot_id);
+
+        self.equipment_slot_owners.insert(equipment_slot_id, unit);
+        self.locations.insert(equipment_slot_id, Box::new(TokenSlot::new(equipment_slot_id)));
+        unit_instance.equipment_slots.push(equipment_slot_id);
+        communicator.send_game_instruction(InstructionToClient::AddEquipmentSlot { token: unit, slot_location_id: equipment_slot_id }).await?;
+        Ok(())
     }
 
     pub async fn destroy_token(&mut self, token_instance_id: TokenInstanceId, communicator: &mut GameCommunicator) -> Result<()> {
@@ -229,7 +240,7 @@ impl StateResources {
         Ok(callback)
     }
 
-    pub async fn can_player_summon_token(&self, token_instance_id: TokenInstanceId, to_location: LocationId, communicator: &mut GameCommunicator) -> Result<bool> {
+    pub async fn can_player_summon_unit(&self, token_instance_id: TokenInstanceId, to_location: LocationId, communicator: &mut GameCommunicator) -> Result<bool> {
         let token_instance = self.token_instances.get(&token_instance_id).context("Unable to find token")?;
         let token_location = token_instance.location.clone();
 
@@ -239,22 +250,77 @@ impl StateResources {
 
         let mut allow = true;
         if token_instance.owner != self.current_turn {
-            communicator.send_error("Can't play token out of turn");
+            communicator.send_error("Can't play token out of turn").await?;
             allow = false;
         }
 
         if token_instance.location != self.get_player(token_instance.owner).hand {
-            communicator.send_error("Can't play token from this location");
+            communicator.send_error("Can't play token from this location").await?;
             allow = false;
         }
 
-        if self.board.get_side(token_instance.owner).field.contains(&to_location) == false {
-            communicator.send_error("Can't play token to this location");
+        if location_ids::identify_location(to_location)?.is_field() == false {
+            communicator.send_error("Can't summon unit token to this location").await?;
             allow = false;
         }
 
         if token_instance.cost > self.get_player(self.current_turn).thaum {
-            communicator.send_error("Can't play token to this location");
+            communicator.send_error("Insufficient Thaum").await?;
+            allow = false;
+        }
+
+        if allow == false {
+            communicator.send_game_instruction(InstructionToClient::MoveToken { token: token_instance_id, to: token_location }).await?;
+        }
+
+        return Ok(allow)
+    }
+
+    pub async fn can_player_equip_item(&self, token_instance_id: TokenInstanceId, to_location: LocationId, communicator: &mut GameCommunicator) -> Result<bool> {
+        let token_instance = self.token_instances.get(&token_instance_id).context("Unable to find token")?;
+        let token_location = token_instance.location.clone();
+
+        let unit_id = self.equipment_slot_owners.get(&to_location).context("Unable to find equipment slot owner");
+        if unit_id.is_err() {
+            return Ok(false)
+        }
+        let unit_id = unit_id.unwrap();
+        let unit_instance = self.token_instances.get(unit_id).context("Unable to find unit instance to equip to")?;
+
+        if token_instance.location == to_location {
+            return Ok(false);
+        }
+
+        let mut allow = true;
+        if token_instance.owner != self.current_turn {
+            communicator.send_error("Can't play token out of turn").await?;
+            allow = false;
+        }
+
+        if token_instance.location != self.get_player(token_instance.owner).hand {
+            communicator.send_error("Can't play token from this location").await?;
+            allow = false;
+        }
+
+        if location_ids::identify_location(to_location)?.is_item_slot() == false {
+            communicator.send_error("Can't equip item token to this location").await?;
+            allow = false;
+        }
+
+        let mut has_room = false;
+        for slot in unit_instance.equipment_slots.iter() {
+            if self.locations.get(slot).context("Unable to find equipment slot")?.has_room() {
+                has_room = true;
+                break;
+            }
+        }
+        if has_room == false {
+            communicator.send_error("Unit has no more equipment slots").await?;
+            allow = false;
+        }
+
+        if token_instance.cost > self.get_player(self.current_turn).thaum {
+            communicator.send_error("Insufficient Thaum").await?;
             allow = false;
         }
 
