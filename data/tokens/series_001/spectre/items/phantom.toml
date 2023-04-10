@@ -1,3 +1,5 @@
+nightly = true
+
 category = "item"
 name = "Phantom"
 cost = 1

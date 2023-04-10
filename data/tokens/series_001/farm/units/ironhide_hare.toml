@@ -1,4 +1,6 @@
-﻿category = "unit"
+﻿nightly = true
+
+category = "unit"
 name = "Ironhide Hare"
 description = "<i>Swift as a bunny, strong as steel, Ironhide Hare refuses to yield!</i>"
 cost = 3

@@ -1,3 +1,5 @@
+nightly = true
+
 category = "unit"
 name = "Scarecrow"
 description = "Amidst the rustling of wheat and the whispers of the wind, the Scarecrow stands vigilant, protecting the bounty of the land from harm."

@@ -1,3 +1,5 @@
+nightly = true
+
 category = "unit"
 name = "Phantom Wisp"
 cost = 1

@@ -1,3 +1,5 @@
+nightly = true
+
 category = "unit"
 name = "Phantom Egg"
 cost = 0

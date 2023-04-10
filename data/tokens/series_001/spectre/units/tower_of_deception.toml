@@ -1,4 +1,6 @@
-﻿category = "unit"
+﻿nightly = true
+
+category = "unit"
 name = "Tower of Deception"
 cost = 12
 types = ["specter", "military"]

@@ -1,3 +1,5 @@
+nightly = true
+
 category = "unit"
 name = "Ancient Skull"
 cost = 2

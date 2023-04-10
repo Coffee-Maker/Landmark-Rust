@@ -1,3 +1,5 @@
+nightly = true
+
 category = "item"
 name = "Spiritual Bond"
 cost = 4

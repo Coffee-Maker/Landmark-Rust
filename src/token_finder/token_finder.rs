@@ -7,6 +7,7 @@ use crate::game::game_communicator::GameCommunicator;
 use crate::game::tag::{get_tag, Tag};
 
 pub async fn finder_service(websocket: WebSocketStream<TcpStream>) -> Result<()> {
+    println!("Starting Token Finder Service");
     let mut communicator = GameCommunicator::new(websocket);
     loop {
         let msg = communicator.read_message().await?;
@@ -20,10 +21,12 @@ pub async fn finder_service(websocket: WebSocketStream<TcpStream>) -> Result<()>
 
         match instruction {
             "search" => {
+                let nightly = get_tag("nightly", data)?.to_lowercase().parse::<bool>()?;
                 communicator.send_raw(&"clear_results|//0/!").await?;
                 let registry = TOKEN_REGISTRY.lock().await;
                 let mut message_to_send = String::new();
                 for token in registry.token_registry.values().collect::<Vec<&&TokenData>>() {
+                    if token.nightly && nightly == false { continue; }
                     message_to_send = format!("{}add_result|{}{}//INS//", message_to_send, Tag::U64(1).build()?, Tag::TokenData(token.clone().clone()).build()?);
                     // Todo: Add behaviors in message
                 }
